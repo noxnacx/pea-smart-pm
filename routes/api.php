@@ -23,3 +23,5 @@ Route::post('/projects', [App\Http\Controllers\Api\ProjectController::class, 'st
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout']);
 Route::get('/user', [AuthController::class, 'me']); // เช็คข้อมูลตัวเอง
+Route::get('/projects', [App\Http\Controllers\Api\ProjectController::class, 'index']);
+Route::delete('/projects/{id}', [App\Http\Controllers\Api\ProjectController::class, 'destroy']);

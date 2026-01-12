@@ -72,7 +72,7 @@ const handleLogin = async () => {
     // ก่อน login เราต้องขอ cookie CSRF ก่อน (เป็นกฎของ Laravel Sanctum)
     await axios.get('/sanctum/csrf-cookie');
 
-    await axios.post('/api/login', form);
+    await axios.post('/login', form);
 
     // 2. ถ้าผ่าน ให้เก็บสถานะว่าล็อกอินแล้ว (ใน LocalStorage ง่ายๆ ก่อน)
     localStorage.setItem('isLoggedIn', 'true');

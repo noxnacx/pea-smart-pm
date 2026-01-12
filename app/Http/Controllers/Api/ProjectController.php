@@ -8,6 +8,31 @@ use Illuminate\Http\Request;
 
 class ProjectController extends Controller
 {
+    // เพิ่มฟังก์ชันนี้ลงไป (หรือแก้ของเดิมถ้ามี)
+    public function index(Request $request)
+    {
+        $query = Project::with('manager'); // ดึงข้อมูลผู้จัดการมาด้วย
+
+        // 1. ระบบค้นหา (ถ้ามีการส่งคำค้นมา)
+        if ($request->has('search')) {
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('code', 'like', "%{$search}%");
+            });
+        }
+
+        // 2. ระบบกรองสถานะ
+        if ($request->has('status') && $request->status != 'all') {
+            $query->where('status', $request->status);
+        }
+
+        // เรียงลำดับล่าสุดก่อน และแบ่งหน้า (Pagination) ทีละ 10 รายการ
+        $projects = $query->orderBy('updated_at', 'desc')->paginate(10);
+
+        return response()->json($projects);
+    }
+
     public function show($id)
     {
         // ค้นหาโครงการตาม ID
@@ -74,5 +99,25 @@ class ProjectController extends Controller
         $project->update($validated);
 
         return response()->json(['message' => 'อัปเดตโครงการสำเร็จ', 'project' => $project]);
+    }
+
+    public function destroy($id)
+    {
+        $project = \App\Models\Project::findOrFail($id);
+
+        // ลบข้อมูลที่เกี่ยวข้องให้หมด (Clean up)
+        // 1. ลบงานย่อย (Tasks)
+        $project->tasks()->delete();
+
+        // 2. ลบประวัติความก้าวหน้า (Progress History)
+        $project->progressHistory()->delete();
+
+        // 3. ลบรายการงบประมาณ (Budget Items)
+        $project->budgetItems()->delete();
+
+        // สุดท้าย ลบตัวโครงการ
+        $project->delete();
+
+        return response()->json(['message' => 'ลบโครงการเรียบร้อยแล้ว']);
     }
 }
