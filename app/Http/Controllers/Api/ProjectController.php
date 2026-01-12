@@ -35,28 +35,27 @@ class ProjectController extends Controller
 
     public function show($id)
     {
-        // ค้นหาโครงการตาม ID
-        $project = Project::with([
-            'manager',          // ใครคุม
-            'tasks',            // งานย่อย (เอาไปทำ Gantt)
-            'budgetItems',      // รายการงบ
-            'risks',            // ความเสี่ยง
-            'progressHistory'   // กราฟ S-Curve เฉพาะโครงการนี้
-        ])->find($id);
+        $project = \App\Models\Project::with(['manager', 'tasks.user'])->findOrFail($id);
 
-        if (!$project) {
-            return response()->json(['message' => 'ไม่พบข้อมูลโครงการ'], 404);
-        }
+        // ดึงประวัติล่าสุด พร้อมชื่อคน
+        $lastUpdate = \App\Models\ProjectProgressHistory::where('project_id', $id)
+            ->with('user')
+            ->orderBy('date_logged', 'desc')
+            ->first();
 
-        // เตรียมข้อมูลส่งกลับ
+        // (โค้ดคำนวณเงินคงเดิม...)
+        $paidAmount = $project->payments()->sum('amount');
+        $budgetSummary = [
+            'contract_amount' => $project->contract_amount,
+            'paid_amount' => $paidAmount,
+            'remaining_amount' => $project->contract_amount - $paidAmount,
+            'paid_percent' => $project->contract_amount > 0 ? ($paidAmount / $project->contract_amount) * 100 : 0,
+        ];
+
         return response()->json([
             'project' => $project,
-            // คำนวณงบประมาณคงเหลือส่งไปด้วยเลย
-            'budget_summary' => [
-                'total' => $project->contract_amount,
-                'used' => $project->paid_amount, // หรือจะดึงจาก expenses sum ก็ได้
-                'remaining' => $project->contract_amount - $project->paid_amount
-            ]
+            'budget_summary' => $budgetSummary,
+            'last_update' => $lastUpdate // <--- ส่งเพิ่มไป
         ]);
     }
 
@@ -119,5 +118,31 @@ class ProjectController extends Controller
         $project->delete();
 
         return response()->json(['message' => 'ลบโครงการเรียบร้อยแล้ว']);
+    }
+
+    // อัปเดตความก้าวหน้าประจำเดือน (S-Curve)
+    public function updateProgress(Request $request, $id)
+    {
+        $request->validate([
+            'date_logged' => 'required|date',
+            'actual_percent' => 'required|numeric|min:0|max:100',
+        ]);
+
+        $project = \App\Models\Project::findOrFail($id);
+
+        $history = \App\Models\ProjectProgressHistory::updateOrCreate(
+            [
+                'project_id' => $id,
+                'date_logged' => $request->date_logged
+            ],
+            [
+                'actual_percent' => $request->actual_percent,
+                'user_id' => $request->user()->id // <--- บันทึกคนอัปเดตตรงนี้
+            ]
+        );
+
+        $project->update(['progress_actual' => $request->actual_percent]);
+
+        return response()->json(['message' => 'Updated', 'history' => $history]);
     }
 }

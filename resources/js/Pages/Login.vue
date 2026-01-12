@@ -1,90 +1,61 @@
-<template>
-  <div class="min-h-screen flex items-center justify-center bg-gray-100">
-    <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-      <div class="text-center mb-6">
-        <h1 class="text-2xl font-bold text-gray-800">PEA Smart PM</h1>
-        <p class="text-gray-500 text-sm">ระบบบริหารจัดการโครงการ</p>
-      </div>
-
-      <form @submit.prevent="handleLogin">
-        <div class="mb-4">
-          <label class="block text-gray-700 text-sm font-bold mb-2">อีเมล</label>
-          <input
-            v-model="form.email"
-            type="email"
-            class="w-full border rounded px-3 py-2 focus:outline-blue-500 focus:border-blue-500"
-            placeholder="admin@pea.co.th"
-            required
-          >
-        </div>
-
-        <div class="mb-6">
-          <label class="block text-gray-700 text-sm font-bold mb-2">รหัสผ่าน</label>
-          <input
-            v-model="form.password"
-            type="password"
-            class="w-full border rounded px-3 py-2 focus:outline-blue-500 focus:border-blue-500"
-            placeholder="********"
-            required
-          >
-        </div>
-
-        <button
-          type="submit"
-          class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition-colors"
-          :disabled="loading"
-        >
-          {{ loading ? 'กำลังตรวจสอบ...' : 'เข้าสู่ระบบ' }}
-        </button>
-
-        <p v-if="errorMessage" class="mt-4 text-red-500 text-sm text-center">
-          {{ errorMessage }}
-        </p>
-      </form>
-
-      <div class="mt-6 text-center text-xs text-gray-400">
-        Demo Account: admin@pea.co.th / password
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup>
-import { reactive, ref } from 'vue';
+import { ref } from 'vue';
 import axios from 'axios';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
-const loading = ref(false);
-const errorMessage = ref('');
-
-const form = reactive({
-  email: '',
-  password: ''
-});
+const form = ref({ email: '', password: '' });
+const errorMsg = ref('');
 
 const handleLogin = async () => {
-  loading.value = true;
-  errorMessage.value = '';
-
   try {
     // 1. ยิง API Login
-    // ก่อน login เราต้องขอ cookie CSRF ก่อน (เป็นกฎของ Laravel Sanctum)
-    await axios.get('/sanctum/csrf-cookie');
+    const response = await axios.post('/api/login', form.value);
 
-    await axios.post('/login', form);
+    // 2. *** จุดสำคัญ: เก็บ Token และสถานะลงเครื่อง ***
+    localStorage.setItem('token', response.data.token);
+    localStorage.setItem('isLoggedIn', 'true'); // ใช้สำหรับ Router Guard
+    localStorage.setItem('user', JSON.stringify(response.data.user)); // เก็บชื่อคนล็อกอินไว้โชว์
 
-    // 2. ถ้าผ่าน ให้เก็บสถานะว่าล็อกอินแล้ว (ใน LocalStorage ง่ายๆ ก่อน)
-    localStorage.setItem('isLoggedIn', 'true');
+    // 3. ตั้งค่า Header ให้ Axios ทันที (ไม่ต้องรอ Refresh หน้า)
+    window.axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
 
-    // 3. ดีดไปหน้า Dashboard
+    // 4. ไปหน้า Dashboard
     router.push('/');
 
   } catch (error) {
     console.error(error);
-    errorMessage.value = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
-  } finally {
-    loading.value = false;
+    errorMsg.value = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
   }
 };
 </script>
+
+<template>
+  <div class="min-h-screen flex items-center justify-center bg-purple-900">
+    <div class="bg-white p-8 rounded-lg shadow-2xl w-96 transform hover:scale-105 transition-transform duration-300">
+      <div class="text-center mb-6">
+        <h1 class="text-3xl font-bold text-purple-800">PEA Smart PM</h1>
+        <p class="text-gray-500 text-sm mt-1">ระบบบริหารโครงการ</p>
+      </div>
+
+      <form @submit.prevent="handleLogin" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Email</label>
+          <input v-model="form.email" type="email" required class="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" placeholder="admin@pea.co.th">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Password</label>
+          <input v-model="form.password" type="password" required class="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" placeholder="••••••••">
+        </div>
+
+        <div v-if="errorMsg" class="text-red-500 text-sm text-center bg-red-50 p-2 rounded">
+          {{ errorMsg }}
+        </div>
+
+        <button type="submit" class="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 font-bold shadow-md transition-colors">
+          เข้าสู่ระบบ
+        </button>
+      </form>
+    </div>
+  </div>
+</template>

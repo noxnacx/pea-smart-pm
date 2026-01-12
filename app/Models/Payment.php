@@ -5,22 +5,19 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Task extends Model
+class Payment extends Model
 {
     use HasFactory;
 
     protected $fillable = [
         'project_id',
-        'parent_id',
-        'name',
-        'weight',
-        'progress',
-        'start_date',
-        'end_date',
+        'payment_date',
+        'amount',
+        'description',
         'user_id' // <--- 1. เพิ่มตรงนี้
     ];
 
-    // 2. เพิ่มฟังก์ชันดึงชื่อคน
+    // 2. เพิ่มฟังก์ชันนี้
     public function user()
     {
         return $this->belongsTo(User::class);

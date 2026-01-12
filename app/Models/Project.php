@@ -53,4 +53,9 @@ class Project extends Model
     {
         return $this->hasMany(ProjectProgressHistory::class);
     }
+
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
 }

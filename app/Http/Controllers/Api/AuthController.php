@@ -16,16 +16,20 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
-        // ถ้าล็อกอินผ่าน
         if (Auth::attempt($credentials)) {
-            $request->session()->regenerate(); // สร้าง Session ใหม่เพื่อความปลอดภัย
+            // 1. ดึง User ออกมา
+            $user = Auth::user();
+
+            // 2. *** สร้าง Token (หัวใจสำคัญที่หายไป) ***
+            $token = $user->createToken('auth_token')->plainTextToken;
+
             return response()->json([
                 'message' => 'เข้าสู่ระบบสำเร็จ',
-                'user' => Auth::user()
+                'user' => $user,
+                'token' => $token // <--- ส่งกุญแจกลับไปให้ Vue.js
             ]);
         }
 
-        // ถ้าผิด
         return response()->json([
             'message' => 'อีเมลหรือรหัสผ่านไม่ถูกต้อง'
         ], 401);

@@ -22,11 +22,22 @@ const fetchDashboardData = async () => {
     loading.value = false;
   } catch (error) {
     console.error("Error loading dashboard:", error);
+    // ถ้า Error ให้ใส่ค่าว่างๆ ไว้ก่อน กันหน้าเว็บพัง
+    stats.value = { total_projects: 0, total_budget: 0, ongoing: 0, late: 0 };
     loading.value = false;
   }
 };
 
-const formatCurrency = (value) => new Intl.NumberFormat('th-TH').format(value);
+const statusLabels = {
+  'ongoing': 'กำลังดำเนินการ',
+  'late': 'ล่าช้า',
+  'completed': 'เสร็จสิ้น',
+  'draft': 'ร่าง (Draft)'
+};
+
+// *** แก้ตรงนี้: ใส่ || 0 เพื่อป้องกัน NaN ***
+const formatCurrency = (value) => new Intl.NumberFormat('th-TH').format(value || 0);
+
 const goToProject = (id) => router.push(`/project/${id}`);
 
 const handleCreateProject = async (formData) => {
@@ -58,7 +69,7 @@ onMounted(() => { fetchDashboardData(); });
         <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden group hover:shadow-md transition-shadow">
           <div class="absolute right-0 top-0 h-full w-1 bg-blue-500"></div>
           <div class="text-gray-500 text-sm font-medium">โครงการทั้งหมด</div>
-          <div class="text-3xl font-bold text-gray-800 mt-2">{{ stats.total_projects }}</div>
+          <div class="text-3xl font-bold text-gray-800 mt-2">{{ stats.total_projects || 0 }}</div>
           <div class="text-xs text-blue-500 mt-2 font-medium flex items-center"><span class="bg-blue-50 px-2 py-1 rounded">Update ล่าสุด</span></div>
         </div>
 
@@ -72,14 +83,14 @@ onMounted(() => { fetchDashboardData(); });
         <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden group hover:shadow-md transition-shadow">
           <div class="absolute right-0 top-0 h-full w-1 bg-green-500"></div>
           <div class="text-gray-500 text-sm font-medium">กำลังดำเนินการ</div>
-          <div class="text-3xl font-bold text-gray-800 mt-2">{{ stats.ongoing }}</div>
+          <div class="text-3xl font-bold text-gray-800 mt-2">{{ stats.ongoing || 0 }}</div>
           <div class="text-xs text-green-500 mt-2 font-medium">โครงการ</div>
         </div>
 
         <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden group hover:shadow-md transition-shadow">
           <div class="absolute right-0 top-0 h-full w-1 bg-red-500"></div>
           <div class="text-gray-500 text-sm font-medium">ล่าช้ากว่าแผน</div>
-          <div class="text-3xl font-bold text-gray-800 mt-2">{{ stats.late }}</div>
+          <div class="text-3xl font-bold text-gray-800 mt-2">{{ stats.late || 0 }}</div>
           <div class="text-xs text-red-500 mt-2 font-medium">ต้องเร่งติดตาม!</div>
         </div>
       </div>
@@ -124,7 +135,7 @@ onMounted(() => { fetchDashboardData(); });
                   'bg-blue-100 text-blue-700 ring-1 ring-blue-600/20': project.status === 'completed',
                   'bg-gray-100 text-gray-700 ring-1 ring-gray-600/20': project.status === 'draft'
                 }" class="px-2.5 py-1 text-xs rounded-full font-medium inline-block min-w-[80px] text-center">
-                  {{ project.status }}
+                  {{ statusLabels[project.status] || project.status }}
                 </span>
               </td>
               <td class="px-6 py-4 text-right">

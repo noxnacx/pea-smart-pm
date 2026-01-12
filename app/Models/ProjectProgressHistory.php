@@ -9,11 +9,25 @@ class ProjectProgressHistory extends Model
 {
     use HasFactory;
 
-    protected $table = 'project_progress_history'; // ชื่อตาราง
-    protected $guarded = [];
+    protected $table = 'project_progress_history';
 
-    // เพิ่มตรงนี้ครับ! บอก Laravel ว่าให้มอง date_logged เป็นวันที่
-    protected $casts = [
-        'date_logged' => 'date',
+    protected $fillable = [
+        'project_id',
+        'date_logged',
+        'planned_percent',
+        'actual_percent',
+        'user_id'
     ];
+
+    // *** เพิ่มส่วนนี้ครับ (สำคัญมากสำหรับกราฟ) ***
+    protected $casts = [
+        'date_logged' => 'date', // แปลงเป็นวันที่อัตโนมัติ
+        'planned_percent' => 'float',
+        'actual_percent' => 'float',
+    ];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 }

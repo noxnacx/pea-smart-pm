@@ -63,7 +63,7 @@ const handleDelete = async (id, event) => {
 const handleSave = async (formData) => {
   try {
     if (formData.id) {
-        await axios.put(`/api/projects/${formData.id}`, formData); // แก้ตรงนี้ให้ใช้ formData.id ตรงๆ
+        await axios.put(`/api/projects/${formData.id}`, formData);
     } else {
         await axios.post('/api/projects', formData);
     }
@@ -74,9 +74,17 @@ const handleSave = async (formData) => {
   }
 };
 
+// ตัวแปรสำหรับแปลงสถานะเป็นภาษาไทย
+const statusLabels = {
+  'ongoing': 'กำลังดำเนินการ',
+  'late': 'ล่าช้า',
+  'completed': 'เสร็จสิ้น',
+  'draft': 'ร่าง (Draft)'
+};
+
 const formatCurrency = (val) => new Intl.NumberFormat('th-TH').format(val || 0);
 
-// Watch Search (Debounce แบบ Manual ไม่ต้องใช้ Lodash)
+// Watch Search
 let timeout = null;
 watch([search, statusFilter], () => {
   clearTimeout(timeout);
@@ -151,7 +159,7 @@ onMounted(() => {
                   'bg-blue-100 text-blue-800': project.status === 'completed',
                   'bg-gray-100 text-gray-800': project.status === 'draft'
                 }" class="px-2 py-1 text-xs rounded-full font-bold">
-                  {{ project.status }}
+                  {{ statusLabels[project.status] || project.status }}
                 </span>
               </td>
               <td class="px-6 py-4 text-right text-gray-600">{{ formatCurrency(project.contract_amount) }}</td>
