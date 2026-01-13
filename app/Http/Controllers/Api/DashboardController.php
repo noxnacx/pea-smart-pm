@@ -10,28 +10,54 @@ use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        // 1. ตัวเลขสรุปด้านบน
-        $totalProjects = Project::count();
-        $totalBudget = Program::sum('total_budget');
-        $ongoingProjects = Project::where('status', 'ongoing')->count();
-        $lateProjects = Project::where('status', 'late')->count();
+        $user = $request->user();
 
-        // 2. ข้อมูลกราฟวงกลม
-        $projectStatus = Project::select('status', DB::raw('count(*) as total'))
-            ->groupBy('status')
-            ->get();
+        // เริ่มต้น Query
+        $query = Project::query();
 
-        // 3. ข้อมูลกราฟ S-Curve
+        // 🔒 LOGIC กรองสิทธิ์: ถ้าไม่ใช่ Admin และไม่ใช่ Program Manager
+        // ให้ดูได้แค่ "โครงการที่เป็น PM" หรือ "โครงการที่เป็นสมาชิกทีม"
+        if ($user->role !== 'admin' && $user->role !== 'program_manager') {
+            $query->where(function($q) use ($user) {
+                // 1. เป็น PM ของโครงการนั้น
+                $q->where('manager_id', $user->id)
+                  // 2. หรือ เป็นสมาชิกในทีม (เช็คผ่าน Relation members)
+                  ->orWhereHas('members', function($m) use ($user) {
+                      $m->where('user_id', $user->id);
+                  });
+            });
+        }
+
+        // ดึงข้อมูลโครงการตามสิทธิ์ที่กรองแล้ว
+        $projects = $query->get();
+
+        // 1. คำนวณตัวเลขสรุป (จากข้อมูลที่กรองแล้ว)
+        $totalProjects = $projects->count();
+        $totalBudget = $projects->sum('contract_amount'); // คำนวณจากโครงการที่เห็น
+        $ongoingProjects = $projects->where('status', 'ongoing')->count();
+        $lateProjects = $projects->where('status', 'late')->count();
+
+        // 2. ข้อมูลกราฟวงกลม (สถานะ) - ต้องนับจาก Collection เพราะ Query ถูกกรองมาแล้ว
+        $projectStatus = [
+            ['status' => 'ongoing', 'total' => $ongoingProjects],
+            ['status' => 'late', 'total' => $lateProjects],
+            ['status' => 'completed', 'total' => $projects->where('status', 'completed')->count()],
+            ['status' => 'draft', 'total' => $projects->where('status', 'draft')->count()],
+        ];
+
+        // 3. ข้อมูลกราฟ S-Curve (ดึงตัวอย่างจากโครงการแรกที่เห็น)
         $sCurveData = [];
-        $sampleProject = Project::with('progressHistory')->first();
+        // เลือกโครงการที่มีประวัติความก้าวหน้ามาโชว์สักอัน (หรืออันที่ Active ล่าสุด)
+        $sampleProject = Project::whereIn('id', $projects->pluck('id'))
+                            ->with('progressHistory')
+                            ->whereHas('progressHistory')
+                            ->first();
 
-        // เช็คว่ามีข้อมูลประวัติหรือไม่
-        if ($sampleProject && $sampleProject->progressHistory->isNotEmpty()) {
+        if ($sampleProject) {
             $sCurveData = $sampleProject->progressHistory->map(function ($history) {
                 return [
-                    // ตรงนี้จะไม่ Error แล้ว เพราะเราแก้ Model แล้ว
                     'date' => $history->date_logged->format('Y-m-d'),
                     'planned' => $history->planned_percent,
                     'actual' => $history->actual_percent,
@@ -39,19 +65,18 @@ class DashboardController extends Controller
             });
         }
 
-        // 4. รายชื่อโครงการล่าสุด
-        $recentProjects = Project::with(['manager']) // โหลด manager มารอไว้
+        // 4. รายชื่อโครงการล่าสุด (5 อันดับแรกของผู้ใช้นั้น)
+        $recentProjects = Project::with(['manager'])
+            ->whereIn('id', $projects->pluck('id')) // กรองตาม ID ที่มีสิทธิ์
             ->orderBy('updated_at', 'desc')
             ->take(5)
             ->get()
             ->map(function ($project) {
-                // ใช้ optional() เพื่อความปลอดภัยสูงสุด (ถ้า manager เป็น null ก็จะไม่พัง)
                 $managerName = optional($project->manager)->name ?? 'ไม่ระบุ';
-
                 return [
                     'id' => $project->id,
                     'name' => $project->name,
-                    'manager' => $managerName, // ใช้ตัวแปรที่เช็คแล้ว
+                    'manager' => $managerName,
                     'budget' => number_format($project->contract_amount),
                     'status' => $project->status,
                     'progress' => $project->progress_actual ?? 0,
@@ -59,6 +84,7 @@ class DashboardController extends Controller
             });
 
         return response()->json([
+            'role' => $user->role, // ส่ง Role กลับไปบอกหน้าบ้าน
             'stats' => [
                 'total_projects' => $totalProjects,
                 'total_budget' => $totalBudget,

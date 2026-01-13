@@ -5,16 +5,31 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
 use Illuminate\Http\Request;
+use App\Models\Task;
+use App\Models\TaskProgressLog;
+use Illuminate\Support\Facades\DB;
 
 class ProjectController extends Controller
 {
-    // เพิ่มฟังก์ชันนี้ลงไป (หรือแก้ของเดิมถ้ามี)
+    // แสดงรายการโครงการ (พร้อมระบบกรองสิทธิ์)
     public function index(Request $request)
     {
-        $query = Project::with('manager'); // ดึงข้อมูลผู้จัดการมาด้วย
+        $user = $request->user();
+        $query = Project::with('manager');
+
+        // 🔒 LOGIC กรองสิทธิ์: ถ้าไม่ใช่ Admin และไม่ใช่ Program Manager
+        // ให้เห็นเฉพาะโครงการที่ตัวเองเป็น PM หรือเป็นสมาชิกทีม
+        if ($user->role !== 'admin' && $user->role !== 'program_manager') {
+            $query->where(function($q) use ($user) {
+                $q->where('manager_id', $user->id)
+                  ->orWhereHas('members', function($m) use ($user) {
+                      $m->where('user_id', $user->id);
+                  });
+            });
+        }
 
         // 1. ระบบค้นหา (ถ้ามีการส่งคำค้นมา)
-        if ($request->has('search')) {
+        if ($request->has('search') && $request->search != '') {
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
@@ -35,11 +50,13 @@ class ProjectController extends Controller
 
     public function show($id)
     {
+        $user = auth()->user();
         $project = \App\Models\Project::with(['manager', 'tasks.user', 'members'])->findOrFail($id);
 
-        // ดึงค่า Risk Analysis จาก Model (ที่เราเพิ่งเขียนไป)
-        $risk = $project->risk_analysis;
+        // เช็คสิทธิ์การแก้ไข (เผื่อเอาไปใช้ซ่อนปุ่มใน Frontend)
+        $canEdit = $user->role === 'admin' || $project->manager_id === $user->id;
 
+        $risk = $project->risk_analysis;
         $paidAmount = $project->payments()->sum('amount');
         $budgetSummary = [
             'contract_amount' => $project->contract_amount,
@@ -51,18 +68,17 @@ class ProjectController extends Controller
         return response()->json([
             'project' => $project,
             'budget_summary' => $budgetSummary,
-            'risk_analysis' => $risk, // <--- ส่งไปหน้าบ้าน
-            'last_update' => $project->progressHistory()->with('user')->latest('date_logged')->first()
+            'risk_analysis' => $risk,
+            'last_update' => $project->progressHistory()->with('user')->latest('date_logged')->first(),
+            'can_edit' => $canEdit // ส่งกลับไปบอกหน้าบ้าน
         ]);
     }
 
-
-    // เพิ่มฟังก์ชันนี้สำหรับ "สร้างโครงการใหม่"
     public function store(Request $request)
     {
         $validated = $request->validate([
             'name' => 'required|string',
-            'code' => 'required|string|unique:projects,code', // ให้กรอกรหัสเองหรือเจนตามรูปแบบ
+            'code' => 'required|string|unique:projects,code',
             'contract_amount' => 'required|numeric',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after:start_date',
@@ -72,14 +88,17 @@ class ProjectController extends Controller
         ]);
 
         $project = Project::create($validated);
-
         return response()->json(['message' => 'สร้างโครงการสำเร็จ', 'project' => $project], 201);
     }
-
 
     public function update(Request $request, $id)
     {
         $project = Project::findOrFail($id);
+
+        // ควรเช็คสิทธิ์ก่อนอัปเดตด้วย (Optional but recommended)
+        if ($request->user()->role !== 'admin' && $project->manager_id !== $request->user()->id) {
+             return response()->json(['message' => 'ไม่มีสิทธิ์แก้ไข'], 403);
+        }
 
         $validated = $request->validate([
             'name' => 'required|string',
@@ -89,7 +108,6 @@ class ProjectController extends Controller
         ]);
 
         $project->update($validated);
-
         return response()->json(['message' => 'อัปเดตโครงการสำเร็จ', 'project' => $project]);
     }
 
@@ -97,23 +115,19 @@ class ProjectController extends Controller
     {
         $project = \App\Models\Project::findOrFail($id);
 
-        // ลบข้อมูลที่เกี่ยวข้องให้หมด (Clean up)
-        // 1. ลบงานย่อย (Tasks)
+        // เช็คสิทธิ์ (เฉพาะ Admin หรือ Manager)
+        if (request()->user()->role !== 'admin' && $project->manager_id !== request()->user()->id) {
+             return response()->json(['message' => 'ไม่มีสิทธิ์ลบ'], 403);
+        }
+
         $project->tasks()->delete();
-
-        // 2. ลบประวัติความก้าวหน้า (Progress History)
         $project->progressHistory()->delete();
-
-        // 3. ลบรายการงบประมาณ (Budget Items)
         $project->budgetItems()->delete();
-
-        // สุดท้าย ลบตัวโครงการ
         $project->delete();
 
         return response()->json(['message' => 'ลบโครงการเรียบร้อยแล้ว']);
     }
 
-    // อัปเดตความก้าวหน้าประจำเดือน (S-Curve)
     public function updateProgress(Request $request, $id)
     {
         $request->validate([
@@ -130,12 +144,11 @@ class ProjectController extends Controller
             ],
             [
                 'actual_percent' => $request->actual_percent,
-                'user_id' => $request->user()->id // <--- บันทึกคนอัปเดตตรงนี้
+                'user_id' => $request->user()->id
             ]
         );
 
         $project->update(['progress_actual' => $request->actual_percent]);
-
         return response()->json(['message' => 'Updated', 'history' => $history]);
     }
 
@@ -147,42 +160,35 @@ class ProjectController extends Controller
         ]);
     }
 
-    // --- เพิ่มต่อท้ายใน Class ProjectController ---
+    // --- Team Management ---
 
-    // 1. ค้นหา User เพื่อเชิญเข้าทีม (พิมพ์แค่บางคำก็เจอ)
     public function searchUsers(Request $request)
     {
         $search = $request->get('q');
         return \App\Models\User::where('name', 'like', "%{$search}%")
             ->orWhere('email', 'like', "%{$search}%")
-            ->limit(10) // เอามาแค่ 10 คนพอ ไม่ต้องเยอะ
+            ->limit(10)
             ->get();
     }
 
-    // 2. เพิ่มสมาชิกเข้าโครงการ
     public function addMember(Request $request, $id)
     {
         $project = Project::findOrFail($id);
-
         $request->validate([
             'user_id' => 'required|exists:users,id',
-            'role' => 'required|in:member,viewer' // กำหนดสิทธิ์ได้ (อนาคตใช้ได้)
+            'role' => 'required|in:member,viewer'
         ]);
 
-        // กันเหนียว: เช็คว่ามีอยู่แล้วหรือยัง? ถ้ายังค่อยเพิ่ม
         if (!$project->members()->where('user_id', $request->user_id)->exists()) {
             $project->members()->attach($request->user_id, ['role' => $request->role]);
         }
-
         return response()->json(['message' => 'เพิ่มสมาชิกเรียบร้อย']);
     }
 
-    // 3. ลบสมาชิกออกจากโครงการ
     public function removeMember($id, $userId)
     {
         $project = Project::findOrFail($id);
         $project->members()->detach($userId);
-
         return response()->json(['message' => 'ลบสมาชิกเรียบร้อย']);
     }
 }

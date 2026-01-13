@@ -1,5 +1,5 @@
 <script setup>
-import AppLayout from '../Components/AppLayout.vue'; // <--- 1. Import Layout หลัก
+import AppLayout from '../Components/AppLayout.vue';
 import GanttChart from '../Components/GanttChart.vue';
 import TaskModal from '../Components/TaskModal.vue';
 import ProjectModal from '../Components/ProjectModal.vue';
@@ -8,7 +8,7 @@ import ProgressModal from '../Components/ProgressModal.vue';
 import TaskHistoryModal from '../Components/TaskHistoryModal.vue';
 import FileModal from '../Components/FileModal.vue';
 import TeamMemberModal from '../Components/TeamMemberModal.vue';
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue'; // <--- เพิ่ม computed
 import { useRoute } from 'vue-router';
 import axios from 'axios';
 
@@ -18,6 +18,11 @@ const project = ref({});
 const budgetSummary = ref({});
 const lastUpdateInfo = ref(null);
 const riskAnalysis = ref(null);
+const currentUser = ref(null); // <--- เก็บข้อมูลคนล็อกอิน
+
+// Permission Flags
+const canManageProject = ref(false); // สำหรับ PM/Admin (แก้โครงสร้าง)
+const canUpdateWork = ref(false);    // สำหรับ Member (อัปเดตงาน)
 
 const statusLabels = {
   'ongoing': 'กำลังดำเนินการ',
@@ -35,14 +40,44 @@ const showTeamModal = ref(false);
 const taskToEdit = ref(null);
 const selectedTaskHistory = ref(null);
 
+// ดึงข้อมูล User ปัจจุบันก่อน
+const fetchCurrentUser = async () => {
+    try {
+        // ดึงจาก LocalStorage หรือ API ก็ได้ แต่ API ชัวร์กว่า
+        const res = await axios.get('/api/user');
+        currentUser.value = res.data;
+    } catch (e) {
+        console.error("Auth error");
+    }
+};
+
 const fetchProjectDetail = async () => {
   try {
     const id = route.params.id;
     const response = await axios.get(`/api/projects/${id}`);
+
     project.value = response.data.project;
     budgetSummary.value = response.data.budget_summary;
     lastUpdateInfo.value = response.data.last_update;
     riskAnalysis.value = response.data.risk_analysis;
+
+    // --- 🔐 คำนวณสิทธิ์ (Authorization Logic) ---
+    if (currentUser.value) {
+        const isAdmin = currentUser.value.role === 'admin';
+        const isPgM = currentUser.value.role === 'program_manager'; // ถ้ามี Role นี้
+        const isPM = project.value.manager_id === currentUser.value.id;
+
+        // เช็คว่าเป็น Member ในทีมไหม?
+        const isMember = project.value.members?.some(m => m.id === currentUser.value.id);
+
+        // 1. สิทธิ์จัดการโครงสร้าง (Admin หรือ PM)
+        canManageProject.value = isAdmin || isPM;
+
+        // 2. สิทธิ์อัปเดตงาน (Admin, PM, หรือ Member)
+        // (Program Manager อาจจะดูได้อย่างเดียว หรือช่วยแก้ได้ แล้วแต่นโยบาย)
+        canUpdateWork.value = isAdmin || isPM || isMember;
+    }
+
     loading.value = false;
   } catch (error) {
     console.error("Error fetching project:", error);
@@ -50,6 +85,7 @@ const fetchProjectDetail = async () => {
   }
 };
 
+// --- Task Functions ---
 const openCreateTask = () => { taskToEdit.value = null; showTaskModal.value = true; };
 const openEditTask = (task) => { taskToEdit.value = task; showTaskModal.value = true; };
 const openTaskHistory = (task) => { selectedTaskHistory.value = task; showHistoryModal.value = true; };
@@ -70,6 +106,7 @@ const handleDeleteTask = async (id) => {
   catch (error) { alert('ลบงานไม่สำเร็จ'); }
 };
 
+// --- Project Functions ---
 const handleUpdateProject = async (formData) => {
   try {
     await axios.put(`/api/projects/${project.value.id}`, formData);
@@ -106,13 +143,17 @@ const formatDateTime = (dateString) => {
   return new Date(dateString).toLocaleString('th-TH', { year: '2-digit', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
 
-onMounted(() => { fetchProjectDetail(); });
+onMounted(async () => {
+    await fetchCurrentUser(); // รอ user ก่อน
+    fetchProjectDetail();
+});
 </script>
 
 <template>
   <AppLayout>
+    <div class="space-y-6">
 
-    <div class="space-y-6"> <div class="mb-4">
+      <div class="mb-4">
         <router-link to="/projects" class="flex items-center text-gray-500 hover:text-purple-600 font-medium w-fit transition-colors">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" /></svg>
           กลับหน้ารายการโครงการ
@@ -133,7 +174,7 @@ onMounted(() => { fetchProjectDetail(); });
                   <div class="flex items-center gap-2 flex-wrap">
                       <h1 class="text-3xl font-bold text-gray-800">{{ project.name }}</h1>
 
-                      <button @click="showProjectModal = true" class="text-gray-400 hover:text-purple-600 p-1" title="แก้ไขโครงการ">
+                      <button v-if="canManageProject" @click="showProjectModal = true" class="text-gray-400 hover:text-purple-600 p-1" title="แก้ไขโครงการ">
                           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
                       </button>
 
@@ -163,10 +204,10 @@ onMounted(() => { fetchProjectDetail(); });
                                    class="inline-block h-8 w-8 rounded-full ring-2 ring-white bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600 cursor-pointer relative group shadow-sm"
                                    :title="member.name">
                                    {{ member.name.charAt(0).toUpperCase() }}
-                                   <button @click="handleRemoveMember(member.id)" class="absolute inset-0 bg-red-500/90 text-white flex items-center justify-center opacity-0 hover:opacity-100 rounded-full transition-all font-bold text-lg shadow-inner">×</button>
+                                   <button v-if="canManageProject" @click="handleRemoveMember(member.id)" class="absolute inset-0 bg-red-500/90 text-white flex items-center justify-center opacity-0 hover:opacity-100 rounded-full transition-all font-bold text-lg shadow-inner">×</button>
                               </div>
 
-                              <button @click="showTeamModal = true" class="ml-2 h-8 w-8 rounded-full ring-2 ring-gray-200 bg-white border border-gray-300 hover:bg-gray-50 flex items-center justify-center text-gray-400 hover:text-purple-600 transition-colors shadow-sm" title="เพิ่มสมาชิก">
+                              <button v-if="canManageProject" @click="showTeamModal = true" class="ml-2 h-8 w-8 rounded-full ring-2 ring-gray-200 bg-white border border-gray-300 hover:bg-gray-50 flex items-center justify-center text-gray-400 hover:text-purple-600 transition-colors shadow-sm" title="เพิ่มสมาชิก">
                                   <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
                               </button>
                           </div>
@@ -178,7 +219,7 @@ onMounted(() => { fetchProjectDetail(); });
                           <p class="text-sm text-gray-500 mb-1">ความก้าวหน้าสะสม:</p>
                           <div class="flex items-center gap-3">
                               <span class="font-bold text-blue-600 text-2xl">{{ project.progress_actual }}%</span>
-                              <button @click="showProgressModal = true" class="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-md transition-colors font-medium">อัปเดต</button>
+                              <button v-if="canUpdateWork" @click="showProgressModal = true" class="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-md transition-colors font-medium">อัปเดต</button>
                           </div>
                           <p v-if="lastUpdateInfo" class="text-xs text-gray-400 mt-1">
                               ล่าสุด: {{ formatDateTime(lastUpdateInfo.date_logged) }} โดย {{ lastUpdateInfo.user?.name || 'ไม่ระบุ' }}
@@ -232,7 +273,7 @@ onMounted(() => { fetchProjectDetail(); });
             <h3 class="font-bold text-xl text-gray-800 flex items-center gap-2">
               <span>📅</span> แผนการดำเนินงาน (Tasks)
             </h3>
-            <button @click="openCreateTask" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm shadow-sm transition-all active:scale-95">
+            <button v-if="canManageProject" @click="openCreateTask" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm shadow-sm transition-all active:scale-95">
                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg> เพิ่มงาน
             </button>
           </div>
@@ -269,8 +310,8 @@ onMounted(() => { fetchProjectDetail(); });
                   </td>
                   <td class="px-4 py-3 text-sm text-gray-500">{{ formatDate(task.start_date) }} - {{ formatDate(task.end_date) }}</td>
                   <td class="px-4 py-3 text-right space-x-1">
-                    <button @click="openEditTask(task)" class="p-1 text-yellow-500 hover:bg-yellow-50 rounded transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg></button>
-                    <button @click="handleDeleteTask(task.id)" class="p-1 text-red-500 hover:bg-red-50 rounded transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg></button>
+                    <button v-if="canUpdateWork" @click="openEditTask(task)" class="p-1 text-yellow-500 hover:bg-yellow-50 rounded transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg></button>
+                    <button v-if="canManageProject" @click="handleDeleteTask(task.id)" class="p-1 text-red-500 hover:bg-red-50 rounded transition-colors"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg></button>
                   </td>
                 </tr>
                 <tr v-if="!project.tasks?.length"><td colspan="6" class="text-center py-8 text-gray-400">ยังไม่มีข้อมูลงานในโครงการนี้</td></tr>

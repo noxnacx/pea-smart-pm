@@ -11,6 +11,7 @@ const loading = ref(true);
 const stats = ref({});
 const recentProjects = ref([]);
 const sCurveData = ref([]);
+const userRole = ref(''); // เก็บ Role ของผู้ใช้
 const showCreateModal = ref(false);
 
 const fetchDashboardData = async () => {
@@ -19,10 +20,10 @@ const fetchDashboardData = async () => {
     stats.value = response.data.stats;
     recentProjects.value = response.data.recent_projects;
     sCurveData.value = response.data.chart_scurve;
+    userRole.value = response.data.role; // รับค่า Role
     loading.value = false;
   } catch (error) {
     console.error("Error loading dashboard:", error);
-    // ถ้า Error ให้ใส่ค่าว่างๆ ไว้ก่อน กันหน้าเว็บพัง
     stats.value = { total_projects: 0, total_budget: 0, ongoing: 0, late: 0 };
     loading.value = false;
   }
@@ -35,9 +36,7 @@ const statusLabels = {
   'draft': 'ร่าง (Draft)'
 };
 
-// *** แก้ตรงนี้: ใส่ || 0 เพื่อป้องกัน NaN ***
 const formatCurrency = (value) => new Intl.NumberFormat('th-TH').format(value || 0);
-
 const goToProject = (id) => router.push(`/project/${id}`);
 
 const handleCreateProject = async (formData) => {
@@ -55,7 +54,15 @@ onMounted(() => { fetchDashboardData(); });
 <template>
   <AppLayout>
     <div class="flex justify-between items-center mb-6">
-      <h1 class="text-2xl font-bold text-gray-800">Dashboard ภาพรวมโครงการ</h1>
+      <div>
+        <h1 class="text-2xl font-bold text-gray-800">
+          {{ (userRole === 'admin' || userRole === 'program_manager') ? '🌍 Dashboard ภาพรวมทั้งองค์กร' : '📁 Dashboard โครงการของฉัน' }}
+        </h1>
+        <p class="text-sm text-gray-500 mt-1">
+           {{ (userRole === 'admin' || userRole === 'program_manager') ? 'ติดตามสถานะงบประมาณและโครงการทั้งหมดในระบบ' : 'ติดตามสถานะงานที่คุณรับผิดชอบ' }}
+        </p>
+      </div>
+
       <button @click="showCreateModal = true" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-transform active:scale-95">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
         สร้างโครงการใหม่
@@ -98,20 +105,20 @@ onMounted(() => { fetchDashboardData(); });
       <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
         <h3 class="font-bold text-gray-700 mb-6 flex items-center gap-2">
            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" /></svg>
-           แนวโน้มความก้าวหน้า (S-Curve)
+           แนวโน้มความก้าวหน้า (S-Curve ตัวอย่าง)
         </h3>
         <div v-if="sCurveData && sCurveData.length > 0" class="h-80">
           <LineChart :data="sCurveData" />
         </div>
         <div v-else class="text-center text-gray-400 py-10 bg-gray-50 rounded-lg border border-dashed border-gray-300">
-           ไม่มีข้อมูลกราฟ
+           ไม่มีข้อมูลกราฟ หรือยังไม่ได้อัปเดตความก้าวหน้า
         </div>
       </div>
 
       <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-          <h3 class="font-bold text-gray-700">โครงการล่าสุด</h3>
-          <span class="text-xs text-purple-600 cursor-pointer hover:underline">ดูทั้งหมด ></span>
+          <h3 class="font-bold text-gray-700">โครงการล่าสุดของคุณ</h3>
+          <span @click="router.push('/projects')" class="text-xs text-purple-600 cursor-pointer hover:underline">ดูทั้งหมด ></span>
         </div>
         <table class="w-full text-left">
           <thead class="bg-gray-100 text-gray-600 uppercase text-xs">
@@ -146,6 +153,9 @@ onMounted(() => { fetchDashboardData(); });
                   </div>
                 </div>
               </td>
+            </tr>
+            <tr v-if="recentProjects.length === 0">
+               <td colspan="4" class="text-center py-6 text-gray-400">ไม่พบโครงการที่เกี่ยวข้องกับคุณ</td>
             </tr>
           </tbody>
         </table>

@@ -32,7 +32,17 @@ const routes = [
         name: 'project.detail',
         component: ProjectDetail,
         meta: { requiresAuth: true }
-    }
+    },
+    {
+        path: '/programs',
+        component: ProgramsIndex,
+        meta: { requiresAuth: true } // ถ้าอยากเข้มงวดกว่านี้ ต้องเช็ค Role ใน router guard ด้วย
+    },
+    {
+        path: '/users',
+        component: UsersIndex,
+        meta: { requiresAuth: true }
+    },
 ];
 
 const router = createRouter({

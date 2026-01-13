@@ -59,4 +59,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/users/search', [ProjectController::class, 'searchUsers']);
     Route::post('/projects/{id}/members', [ProjectController::class, 'addMember']);
     Route::delete('/projects/{id}/members/{userId}', [ProjectController::class, 'removeMember']);
+
+    // Admin: Manage Programs
+    Route::get('/programs', [App\Http\Controllers\Api\ProgramController::class, 'index']);
+    Route::post('/programs', [App\Http\Controllers\Api\ProgramController::class, 'store']);
+    Route::put('/programs/{id}', [App\Http\Controllers\Api\ProgramController::class, 'update']);
+    Route::delete('/programs/{id}', [App\Http\Controllers\Api\ProgramController::class, 'destroy']);
+
+    // Admin: Manage Users
+    Route::get('/users', [App\Http\Controllers\Api\UserController::class, 'index']);
+    Route::post('/users', [App\Http\Controllers\Api\UserController::class, 'store']);
+    Route::put('/users/{id}', [App\Http\Controllers\Api\UserController::class, 'update']);
+    Route::delete('/users/{id}', [App\Http\Controllers\Api\UserController::class, 'destroy']);
 });
