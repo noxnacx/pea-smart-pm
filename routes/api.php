@@ -13,6 +13,8 @@ use App\Http\Controllers\Api\BudgetController;
 use App\Http\Controllers\Api\AttachmentController;
 use App\Http\Controllers\Api\ProgramController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\CommentController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -63,6 +65,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/tasks/{id}', [TaskController::class, 'update']);
     Route::delete('/tasks/{id}', [TaskController::class, 'destroy']);
     Route::get('/tasks/{id}/logs', [TaskController::class, 'getLogs']);
+    Route::get('/comments', [App\Http\Controllers\Api\CommentController::class, 'index']);
+    Route::post('/comments', [App\Http\Controllers\Api\CommentController::class, 'store']);
 
     // --- Financials ---
     Route::post('/payments', [PaymentController::class, 'store']);

@@ -9,6 +9,7 @@ import ProgressModal from '../Components/ProgressModal.vue';
 import TaskHistoryModal from '../Components/TaskHistoryModal.vue';
 import FileModal from '../Components/FileModal.vue';
 import TeamMemberModal from '../Components/TeamMemberModal.vue';
+import CommentSection from '../Components/CommentSection.vue'; // ✅ 1. เพิ่ม Import Component นี้
 import { ref, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import axios from 'axios';
@@ -218,12 +219,12 @@ onMounted(async () => {
                       </div>
 
                       <div v-if="riskAnalysis" class="flex-1 max-w-md p-3 rounded-lg border flex items-center gap-3 transition-colors"
-                          :class="{
-                          'bg-red-50 border-red-200': riskAnalysis.level === 'high',
-                          'bg-yellow-50 border-yellow-200': riskAnalysis.level === 'medium',
-                          'bg-green-50 border-green-200': riskAnalysis.level === 'low',
-                          'bg-gray-50 border-gray-200': riskAnalysis.color === 'gray'
-                          }">
+                           :class="{
+                           'bg-red-50 border-red-200': riskAnalysis.level === 'high',
+                           'bg-yellow-50 border-yellow-200': riskAnalysis.level === 'medium',
+                           'bg-green-50 border-green-200': riskAnalysis.level === 'low',
+                           'bg-gray-50 border-gray-200': riskAnalysis.color === 'gray'
+                           }">
                           <div :class="{
                               'text-red-600': riskAnalysis.level === 'high',
                               'text-yellow-600': riskAnalysis.level === 'medium',
@@ -291,8 +292,8 @@ onMounted(async () => {
                 <tr v-for="task in project.tasks" :key="task.id" class="hover:bg-purple-50 transition-colors">
                   <td class="px-4 py-3 font-medium">
                       <button @click="openTaskHistory(task)" class="text-gray-800 hover:text-purple-600 hover:underline text-left font-bold transition-colors flex items-center gap-2">
-                         {{ task.name }}
-                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                          {{ task.name }}
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
                       </button>
                   </td>
                   <td class="px-4 py-3 text-center">
@@ -317,6 +318,8 @@ onMounted(async () => {
             </table>
           </div>
         </div>
+
+        <CommentSection type="project" :id="project.id" />
 
         <TaskModal :isOpen="showTaskModal" :projectId="project.id" :editData="taskToEdit" @close="showTaskModal=false" @saved="handleSaveTask" />
         <ProjectModal :isOpen="showProjectModal" :project="project" @close="showProjectModal=false" @saved="handleUpdateProject" />
