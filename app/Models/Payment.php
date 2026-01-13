@@ -22,4 +22,11 @@ class Payment extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function attachments() {
+
+        return $this->morphMany(Attachment::class, 'attachable');
+
+    }
+
 }

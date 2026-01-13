@@ -7,7 +7,7 @@
       </div>
 
       <div class="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold border border-purple-200">
-        {{ user.name ? user.name.charAt(0) : 'U' }}
+        {{ user.name ? user.name.charAt(0).toUpperCase() : 'U' }}
       </div>
 
       <div class="h-6 w-px bg-gray-300 mx-2"></div>
@@ -31,24 +31,47 @@ import axios from 'axios';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
-const user = ref({ name: 'Loading...', email: '' });
+const user = ref({ name: 'User', email: '' });
 
 onMounted(async () => {
+  // ดึงข้อมูล User จาก LocalStorage ก่อน (เพื่อให้แสดงผลทันที ไม่ต้องรอ API)
+  const storedUser = localStorage.getItem('user_info');
+  if (storedUser) {
+    user.value = JSON.parse(storedUser);
+  }
+
+  // (Optional) ยิง API เช็คอีกทีเพื่อความชัวร์
   try {
     const response = await axios.get('/api/user');
     user.value = response.data;
+    // อัปเดตข้อมูลล่าสุดลง LocalStorage
+    localStorage.setItem('user_info', JSON.stringify(response.data));
   } catch (error) {
-    localStorage.removeItem('isLoggedIn');
-    router.push('/login');
+    // ถ้า Token หมดอายุ ให้ดีดออก
+    if (error.response && error.response.status === 401) {
+       handleLogout(false); // false = ไม่ต้องถามยืนยัน
+    }
   }
 });
 
-const handleLogout = async () => {
-  if (!confirm('ต้องการออกจากระบบใช่หรือไม่?')) return;
+const handleLogout = async (confirmLogout = true) => {
+  if (confirmLogout && !confirm('ต้องการออกจากระบบใช่หรือไม่?')) return;
+
   try {
-    await axios.post('/logout');
-    localStorage.removeItem('isLoggedIn');
+    // 1. แจ้ง Server ให้ลบ Token
+    await axios.post('/api/logout');
+  } catch (error) {
+    console.error('Logout error:', error);
+  } finally {
+    // 2. ล้างข้อมูลในเครื่องให้เกลี้ยง
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('user_info');
+
+    // 3. ลบ Header ที่ค้างอยู่ใน Axios
+    delete axios.defaults.headers.common['Authorization'];
+
+    // 4. ดีดไปหน้า Login
     router.push('/login');
-  } catch (error) { console.error(error); }
+  }
 };
 </script>

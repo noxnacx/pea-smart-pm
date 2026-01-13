@@ -35,15 +35,11 @@ class ProjectController extends Controller
 
     public function show($id)
     {
-        $project = \App\Models\Project::with(['manager', 'tasks.user'])->findOrFail($id);
+        $project = \App\Models\Project::with(['manager', 'tasks.user', 'members'])->findOrFail($id);
 
-        // ดึงประวัติล่าสุด พร้อมชื่อคน
-        $lastUpdate = \App\Models\ProjectProgressHistory::where('project_id', $id)
-            ->with('user')
-            ->orderBy('date_logged', 'desc')
-            ->first();
+        // ดึงค่า Risk Analysis จาก Model (ที่เราเพิ่งเขียนไป)
+        $risk = $project->risk_analysis;
 
-        // (โค้ดคำนวณเงินคงเดิม...)
         $paidAmount = $project->payments()->sum('amount');
         $budgetSummary = [
             'contract_amount' => $project->contract_amount,
@@ -55,28 +51,25 @@ class ProjectController extends Controller
         return response()->json([
             'project' => $project,
             'budget_summary' => $budgetSummary,
-            'last_update' => $lastUpdate // <--- ส่งเพิ่มไป
+            'risk_analysis' => $risk, // <--- ส่งไปหน้าบ้าน
+            'last_update' => $project->progressHistory()->with('user')->latest('date_logged')->first()
         ]);
     }
 
-    // ... (ฟังก์ชันอื่นเดิม) ...
 
     // เพิ่มฟังก์ชันนี้สำหรับ "สร้างโครงการใหม่"
     public function store(Request $request)
     {
         $validated = $request->validate([
             'name' => 'required|string',
+            'code' => 'required|string|unique:projects,code', // ให้กรอกรหัสเองหรือเจนตามรูปแบบ
             'contract_amount' => 'required|numeric',
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after:start_date',
+            'manager_id' => 'required|exists:users,id',
+            'program_id' => 'required|exists:programs,id',
             'status' => 'required|in:draft,ongoing,late,completed,cancel',
-            'progress_actual' => 'nullable|numeric|min:0|max:100',
         ]);
-
-        // เนื่องจากเรายังไม่ได้ทำระบบ Login ขอ Hardcode ค่าเหล่านี้ไปก่อนครับ
-        $validated['code'] = 'PEA-' . date('y') . '-' . rand(100, 999); // สุ่มรหัสโครงการ
-        $validated['program_id'] = 1; // ผูกกับแผนงานแรก
-        $validated['manager_id'] = 1; // ให้ Admin เป็นคนดูแล
-        $validated['start_date'] = now();
-        $validated['end_date'] = now()->addYear();
 
         $project = Project::create($validated);
 
@@ -144,5 +137,52 @@ class ProjectController extends Controller
         $project->update(['progress_actual' => $request->actual_percent]);
 
         return response()->json(['message' => 'Updated', 'history' => $history]);
+    }
+
+    public function getOptions()
+    {
+        return response()->json([
+            'managers' => \App\Models\User::all(['id', 'name']),
+            'programs' => \App\Models\Program::all(['id', 'name']),
+        ]);
+    }
+
+    // --- เพิ่มต่อท้ายใน Class ProjectController ---
+
+    // 1. ค้นหา User เพื่อเชิญเข้าทีม (พิมพ์แค่บางคำก็เจอ)
+    public function searchUsers(Request $request)
+    {
+        $search = $request->get('q');
+        return \App\Models\User::where('name', 'like', "%{$search}%")
+            ->orWhere('email', 'like', "%{$search}%")
+            ->limit(10) // เอามาแค่ 10 คนพอ ไม่ต้องเยอะ
+            ->get();
+    }
+
+    // 2. เพิ่มสมาชิกเข้าโครงการ
+    public function addMember(Request $request, $id)
+    {
+        $project = Project::findOrFail($id);
+
+        $request->validate([
+            'user_id' => 'required|exists:users,id',
+            'role' => 'required|in:member,viewer' // กำหนดสิทธิ์ได้ (อนาคตใช้ได้)
+        ]);
+
+        // กันเหนียว: เช็คว่ามีอยู่แล้วหรือยัง? ถ้ายังค่อยเพิ่ม
+        if (!$project->members()->where('user_id', $request->user_id)->exists()) {
+            $project->members()->attach($request->user_id, ['role' => $request->role]);
+        }
+
+        return response()->json(['message' => 'เพิ่มสมาชิกเรียบร้อย']);
+    }
+
+    // 3. ลบสมาชิกออกจากโครงการ
+    public function removeMember($id, $userId)
+    {
+        $project = Project::findOrFail($id);
+        $project->members()->detach($userId);
+
+        return response()->json(['message' => 'ลบสมาชิกเรียบร้อย']);
     }
 }

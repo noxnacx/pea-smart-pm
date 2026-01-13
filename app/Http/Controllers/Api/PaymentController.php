@@ -43,4 +43,12 @@ class PaymentController extends Controller
         return response()->json(['message' => 'Deleted']);
     }
 
+
+    // เพิ่มใน PaymentController.php
+    public function getFiles($id)
+    {
+        $payment = Payment::findOrFail($id);
+        return $payment->attachments; // ดึงไฟล์ทั้งหมดของ Payment นี้
+    }
+
 }

@@ -1,81 +1,156 @@
+<script setup>
+import { ref, watch, onMounted } from 'vue';
+import axios from 'axios';
+
+const props = defineProps(['isOpen', 'project']);
+const emit = defineEmits(['close', 'saved']);
+
+// ข้อมูล Master Data สำหรับตัวเลือก
+const managers = ref([]);
+const programs = ref([]);
+
+const form = ref({
+  id: null,
+  name: '',
+  code: '',
+  contract_amount: 0,
+  start_date: '',
+  end_date: '',
+  manager_id: '',
+  program_id: '',
+  status: 'draft',
+  progress_actual: 0
+});
+
+// ดึงข้อมูลตัวเลือกจาก Master Data
+const fetchOptions = async () => {
+  try {
+    const res = await axios.get('/api/master-data/project-options');
+    managers.value = res.data.managers;
+    programs.value = res.data.programs;
+  } catch (e) {
+    console.error("Error fetching options:", e);
+  }
+};
+
+// เคลียร์ฟอร์ม
+const resetForm = () => {
+  form.value = {
+    id: null,
+    name: '',
+    code: '',
+    contract_amount: 0,
+    start_date: '',
+    end_date: '',
+    manager_id: '',
+    program_id: '',
+    status: 'draft',
+    progress_actual: 0
+  };
+};
+
+watch(() => props.isOpen, (newVal) => {
+  if (newVal) {
+    fetchOptions();
+    if (props.project) {
+      // โหมดแก้ไข: ใส่ข้อมูลเดิม
+      form.value = { ...props.project };
+      // จัดรูปแบบวันที่ให้เข้ากับ <input type="date"> (YYYY-MM-DD)
+      if (form.value.start_date) form.value.start_date = new Date(form.value.start_date).toISOString().split('T')[0];
+      if (form.value.end_date) form.value.end_date = new Date(form.value.end_date).toISOString().split('T')[0];
+    } else {
+      resetForm();
+    }
+  }
+});
+
+const submit = () => {
+  // ตรวจสอบความถูกต้องเบื้องต้น
+  if (!form.value.name || !form.value.code || !form.value.start_date || !form.value.end_date) {
+    alert('กรุณากรอกข้อมูลที่จำเป็นให้ครบถ้วน (รหัส, ชื่อ, วันที่)');
+    return;
+  }
+  emit('saved', form.value);
+};
+</script>
+
 <template>
-  <div v-if="isOpen" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
-      <h3 class="text-xl font-bold mb-4">
-        {{ isEditMode ? '✏️ แก้ไขโครงการ' : '✨ สร้างโครงการใหม่' }}
-      </h3>
+  <div v-if="isOpen" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden">
+      <div class="p-6 border-b bg-gray-50 flex justify-between items-center">
+        <h3 class="text-xl font-bold text-gray-800">
+          {{ form.id ? '📝 แก้ไขข้อมูลโครงการ' : '➕ สร้างโครงการใหม่' }}
+        </h3>
+        <button @click="$emit('close')" class="text-gray-400 hover:text-gray-600">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+      </div>
 
-      <form @submit.prevent="submitForm">
-        <div class="mb-4">
-          <label class="block text-gray-700 text-sm font-bold mb-2">ชื่อโครงการ</label>
-          <input v-model="form.name" type="text" class="w-full border rounded px-3 py-2 focus:outline-blue-500" required placeholder="เช่น ก่อสร้างสถานีไฟฟ้า...">
-        </div>
+      <div class="p-6 overflow-y-auto max-h-[80vh]">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="md:col-span-1">
+            <label class="block text-sm font-bold text-gray-700 mb-1">รหัสโครงการ *</label>
+            <input v-model="form.code" type="text" class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 outline-none" placeholder="เช่น PEA-67-001">
+          </div>
 
-        <div class="mb-4">
-          <label class="block text-gray-700 text-sm font-bold mb-2">มูลค่าสัญญา (บาท)</label>
-          <input v-model="form.contract_amount" type="number" class="w-full border rounded px-3 py-2" required>
-        </div>
-
-        <div class="grid grid-cols-2 gap-4 mb-6">
-          <div>
-            <label class="block text-gray-700 text-sm font-bold mb-2">สถานะ</label>
-            <select v-model="form.status" class="w-full border rounded px-3 py-2 bg-white">
+          <div class="md:col-span-1">
+            <label class="block text-sm font-bold text-gray-700 mb-1">สถานะโครงการ</label>
+            <select v-model="form.status" class="w-full border rounded-lg px-3 py-2 outline-none">
               <option value="draft">ร่าง (Draft)</option>
               <option value="ongoing">กำลังดำเนินการ</option>
               <option value="late">ล่าช้า</option>
               <option value="completed">เสร็จสิ้น</option>
             </select>
           </div>
-          <div>
-            <label class="block text-gray-700 text-sm font-bold mb-2">ความก้าวหน้า (%)</label>
-            <input v-model="form.progress_actual" type="number" class="w-full border rounded px-3 py-2" min="0" max="100">
+
+          <div class="md:col-span-2">
+            <label class="block text-sm font-bold text-gray-700 mb-1">ชื่อโครงการ *</label>
+            <input v-model="form.name" type="text" class="w-full border rounded-lg px-3 py-2 outline-none" placeholder="ระบุชื่อโครงการเต็ม">
+          </div>
+
+          <div class="md:col-span-1">
+            <label class="block text-sm font-bold text-gray-700 mb-1">แผนงานหลัก (Program)</label>
+            <select v-model="form.program_id" class="w-full border rounded-lg px-3 py-2 outline-none">
+              <option value="" disabled>เลือกแผนงาน...</option>
+              <option v-for="pg in programs" :key="pg.id" :value="pg.id">{{ pg.name }}</option>
+            </select>
+          </div>
+
+          <div class="md:col-span-1">
+            <label class="block text-sm font-bold text-gray-700 mb-1">ผู้จัดการโครงการ (PM)</label>
+            <select v-model="form.manager_id" class="w-full border rounded-lg px-3 py-2 outline-none">
+              <option value="" disabled>เลือกผู้ดูแล...</option>
+              <option v-for="m in managers" :key="m.id" :value="m.id">{{ m.name }}</option>
+            </select>
+          </div>
+
+          <div class="md:col-span-1">
+            <label class="block text-sm font-bold text-gray-700 mb-1">มูลค่าสัญญา (บาท)</label>
+            <input v-model="form.contract_amount" type="number" class="w-full border rounded-lg px-3 py-2 outline-none">
+          </div>
+
+          <div class="md:col-span-1">
+            <label class="block text-sm font-bold text-gray-700 mb-1">ความคืบหน้าสะสม (%)</label>
+            <input v-model="form.progress_actual" type="number" min="0" max="100" class="w-full border rounded-lg px-3 py-2 outline-none">
+          </div>
+
+          <div class="md:col-span-1">
+            <label class="block text-sm font-bold text-gray-700 mb-1">วันที่เริ่มต้นโครงการ *</label>
+            <input v-model="form.start_date" type="date" class="w-full border rounded-lg px-3 py-2 outline-none">
+          </div>
+          <div class="md:col-span-1">
+            <label class="block text-sm font-bold text-gray-700 mb-1">วันที่สิ้นสุดตามสัญญา *</label>
+            <input v-model="form.end_date" type="date" class="w-full border rounded-lg px-3 py-2 outline-none">
           </div>
         </div>
+      </div>
 
-        <div class="flex justify-end gap-2">
-          <button type="button" @click="$emit('close')" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">ยกเลิก</button>
-          <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">บันทึก</button>
-        </div>
-      </form>
+      <div class="p-6 border-t bg-gray-50 flex justify-end gap-3">
+        <button @click="$emit('close')" class="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium">ยกเลิก</button>
+        <button @click="submit" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-bold shadow-lg transition-all active:scale-95">
+          💾 {{ form.id ? 'บันทึกการแก้ไข' : 'สร้างโครงการ' }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
-
-<script setup>
-import { reactive, watch, computed } from 'vue';
-
-const props = defineProps(['isOpen', 'project']);
-const emit = defineEmits(['close', 'saved']);
-
-const isEditMode = computed(() => !!props.project);
-
-const form = reactive({
-  name: '',
-  status: 'ongoing',
-  progress_actual: 0,
-  contract_amount: 0
-});
-
-// Watch: เมื่อเปิด Modal ให้เช็คว่าจะเติมของเก่า หรือ ล้างฟอร์ม
-watch(() => props.isOpen, (isOpen) => {
-  if (isOpen) {
-    if (props.project) {
-      // โหมดแก้ไข
-      form.name = props.project.name;
-      form.status = props.project.status;
-      form.progress_actual = props.project.progress_actual;
-      form.contract_amount = props.project.contract_amount;
-    } else {
-      // โหมดสร้างใหม่ (ล้างค่า)
-      form.name = '';
-      form.status = 'ongoing';
-      form.progress_actual = 0;
-      form.contract_amount = 0;
-    }
-  }
-});
-
-const submitForm = () => {
-  emit('saved', { ...form });
-};
-</script>

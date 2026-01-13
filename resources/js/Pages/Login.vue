@@ -5,55 +5,57 @@ import { useRouter } from 'vue-router';
 
 const router = useRouter();
 const form = ref({ email: '', password: '' });
-const errorMsg = ref('');
+const errorMessage = ref('');
+const loading = ref(false);
 
 const handleLogin = async () => {
+  loading.value = true;
+  errorMessage.value = '';
   try {
-    // 1. ยิง API Login
     const response = await axios.post('/api/login', form.value);
-
-    // 2. *** จุดสำคัญ: เก็บ Token และสถานะลงเครื่อง ***
-    localStorage.setItem('token', response.data.token);
-    localStorage.setItem('isLoggedIn', 'true'); // ใช้สำหรับ Router Guard
-    localStorage.setItem('user', JSON.stringify(response.data.user)); // เก็บชื่อคนล็อกอินไว้โชว์
-
-    // 3. ตั้งค่า Header ให้ Axios ทันที (ไม่ต้องรอ Refresh หน้า)
-    window.axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
-
-    // 4. ไปหน้า Dashboard
-    router.push('/');
-
+    const token = response.data.token;
+    localStorage.setItem('auth_token', token);
+    localStorage.setItem('user_info', JSON.stringify(response.data.user));
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    router.push('/dashboard');
   } catch (error) {
-    console.error(error);
-    errorMsg.value = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+    if (error.response && error.response.status === 401) {
+      errorMessage.value = 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+    } else {
+      errorMessage.value = 'เกิดข้อผิดพลาดในการเชื่อมต่อ';
+    }
+  } finally {
+    loading.value = false;
   }
 };
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-purple-900">
-    <div class="bg-white p-8 rounded-lg shadow-2xl w-96 transform hover:scale-105 transition-transform duration-300">
-      <div class="text-center mb-6">
-        <h1 class="text-3xl font-bold text-purple-800">PEA Smart PM</h1>
-        <p class="text-gray-500 text-sm mt-1">ระบบบริหารโครงการ</p>
+  <div class="min-h-screen flex items-center justify-center bg-gray-100">
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md border border-gray-200">
+
+      <div class="text-center mb-8">
+        <img src="/images/logo.png" alt="PEA Logo" class="h-24 mx-auto mb-4 object-contain">
+        <h2 class="text-2xl font-bold text-gray-800">เข้าสู่ระบบ</h2>
+        <p class="text-gray-500 text-sm mt-1">ระบบบริหารจัดการโครงการ (Smart PM)</p>
       </div>
 
-      <form @submit.prevent="handleLogin" class="space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-gray-700">Email</label>
-          <input v-model="form.email" type="email" required class="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" placeholder="admin@pea.co.th">
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-gray-700">Password</label>
-          <input v-model="form.password" type="password" required class="w-full mt-1 p-2 border rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" placeholder="••••••••">
-        </div>
+      <div v-if="errorMessage" class="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg flex items-center gap-2 border border-red-100">
+        {{ errorMessage }}
+      </div>
 
-        <div v-if="errorMsg" class="text-red-500 text-sm text-center bg-red-50 p-2 rounded">
-          {{ errorMsg }}
+      <form @submit.prevent="handleLogin" class="space-y-5">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">อีเมล</label>
+          <input v-model="form.email" type="email" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" placeholder="admin@pea.co.th">
         </div>
-
-        <button type="submit" class="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 font-bold shadow-md transition-colors">
-          เข้าสู่ระบบ
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">รหัสผ่าน</label>
+          <input v-model="form.password" type="password" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 outline-none" placeholder="••••••••">
+        </div>
+        <button type="submit" :disabled="loading" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-lg shadow transition-colors flex justify-center items-center gap-2 disabled:opacity-70">
+          <span v-if="loading">กำลังตรวจสอบ...</span>
+          <span v-else>เข้าสู่ระบบ</span>
         </button>
       </form>
     </div>

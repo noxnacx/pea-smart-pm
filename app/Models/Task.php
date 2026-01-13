@@ -25,4 +25,16 @@ class Task extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    // เพิ่มใน Task.php
+    public function progressLogs()
+    {
+        return $this->hasMany(TaskProgressLog::class)->orderBy('created_at', 'desc');
+    }
+
+    public function attachments()
+    {
+        return $this->morphMany(Attachment::class, 'attachable');
+    }
+
 }

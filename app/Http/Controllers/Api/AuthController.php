@@ -17,16 +17,17 @@ class AuthController extends Controller
         ]);
 
         if (Auth::attempt($credentials)) {
-            // 1. ดึง User ออกมา
+            /** @var \App\Models\User $user */
             $user = Auth::user();
 
-            // 2. *** สร้าง Token (หัวใจสำคัญที่หายไป) ***
+            // 2. สร้าง Token (หัวใจสำคัญ)
+            // 'auth_token' คือชื่อของ Token ตั้งอะไรก็ได้
             $token = $user->createToken('auth_token')->plainTextToken;
 
             return response()->json([
                 'message' => 'เข้าสู่ระบบสำเร็จ',
                 'user' => $user,
-                'token' => $token // <--- ส่งกุญแจกลับไปให้ Vue.js
+                'token' => $token // <--- ส่งกุญแจกลับไปให้ Vue.js เก็บไว้
             ]);
         }
 
@@ -35,12 +36,12 @@ class AuthController extends Controller
         ], 401);
     }
 
-    // 2. ออกจากระบบ
+    // 2. ออกจากระบบ (แก้ไขใหม่สำหรับ API)
     public function logout(Request $request)
     {
-        Auth::guard('web')->logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        // ลบ Token ปัจจุบันที่ใช้อยู่ทิ้งไป (Revoke Current Token)
+        // คำสั่งนี้จะทำให้ Token ที่แนบมากับ Request นี้ใช้งานไม่ได้อีกต่อไป
+        $request->user()->currentAccessToken()->delete();
 
         return response()->json(['message' => 'ออกจากระบบสำเร็จ']);
     }

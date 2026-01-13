@@ -7,6 +7,10 @@ use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\TaskController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\AttachmentController;
+
+
+
 
 // 1. เส้นทางสาธารณะ (ไม่ต้องล็อกอินก็เข้าได้)
 Route::post('/login', [AuthController::class, 'login']);
@@ -27,6 +31,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/projects/{id}', [ProjectController::class, 'show']);
     Route::put('/projects/{id}', [ProjectController::class, 'update']);
     Route::delete('/projects/{id}', [ProjectController::class, 'destroy']);
+    Route::get('/master-data/project-options', [ProjectController::class, 'getOptions']);
 
     // Progress (อัปเดตความก้าวหน้า)
     Route::post('/projects/{id}/progress', [ProjectController::class, 'updateProgress']);
@@ -40,4 +45,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/projects/{id}/payments', [PaymentController::class, 'index']);
     Route::post('/payments', [PaymentController::class, 'store']);
     Route::delete('/payments/{id}', [PaymentController::class, 'destroy']);
+    Route::get('/payments/{id}/files', [PaymentController::class, 'getFiles']);
+
+    // อัปโหลดไฟล์
+    Route::post('/attachments/upload', [AttachmentController::class, 'upload']);
+    Route::delete('/attachments/{id}', [AttachmentController::class, 'destroy']);
+
+    // ดึงประวัติของ Task รายตัว
+    Route::get('/tasks/{id}/logs', [TaskController::class, 'getLogs']);
+    Route::get('/attachments', [AttachmentController::class, 'index']);
+
+    // Team Management
+    Route::get('/users/search', [ProjectController::class, 'searchUsers']);
+    Route::post('/projects/{id}/members', [ProjectController::class, 'addMember']);
+    Route::delete('/projects/{id}/members/{userId}', [ProjectController::class, 'removeMember']);
 });

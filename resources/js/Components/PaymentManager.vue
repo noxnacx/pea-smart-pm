@@ -1,10 +1,15 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
 import axios from 'axios';
+import PaymentFileModal from './PaymentFileModal.vue'; // <--- 1. Import Modal จัดการไฟล์
 
 const props = defineProps(['projectId', 'contractAmount']);
 const payments = ref([]);
 const loading = ref(false);
+
+// State สำหรับ Modal ไฟล์แนบ
+const showFileModal = ref(false);
+const selectedPayment = ref(null);
 
 const form = ref({
   payment_date: new Date().toISOString().substr(0, 10),
@@ -40,10 +45,15 @@ const handleDelete = async (id) => {
   fetchPayments();
 };
 
+// ฟังก์ชันเปิด Modal ไฟล์แนบ
+const openFiles = (payment) => {
+  selectedPayment.value = payment;
+  showFileModal.value = true;
+};
+
 const formatCurrency = (val) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(val);
 const formatDate = (date) => new Date(date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
 
-// เพิ่มฟังก์ชันแสดงเวลา
 const formatDateTime = (dateString) => {
   if (!dateString) return '-';
   return new Date(dateString).toLocaleString('th-TH', {
@@ -102,7 +112,7 @@ onMounted(fetchPayments);
             <th class="px-4 py-2">วันที่</th>
             <th class="px-4 py-2">รายการ</th>
             <th class="px-4 py-2 text-right">จำนวนเงิน</th>
-            <th class="px-4 py-2 text-center">ผู้บันทึก</th>
+            <th class="px-4 py-2 text-center">หลักฐาน</th> <th class="px-4 py-2 text-center">ผู้บันทึก</th>
             <th class="px-4 py-2 text-center">ลบ</th>
           </tr>
         </thead>
@@ -111,6 +121,13 @@ onMounted(fetchPayments);
             <td class="px-4 py-2">{{ formatDate(pay.payment_date) }}</td>
             <td class="px-4 py-2">{{ pay.description }}</td>
             <td class="px-4 py-2 text-right font-medium">{{ formatCurrency(pay.amount) }}</td>
+
+            <td class="px-4 py-2 text-center">
+               <button @click="openFiles(pay)" class="text-blue-500 hover:text-blue-700 flex items-center justify-center gap-1 w-full transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                  <span class="text-xs font-medium">แนบไฟล์</span>
+               </button>
+            </td>
 
             <td class="px-4 py-2 text-center">
               <div v-if="pay.user">
@@ -125,10 +142,16 @@ onMounted(fetchPayments);
             </td>
           </tr>
           <tr v-if="payments.length === 0">
-            <td colspan="5" class="text-center py-4 text-gray-400">ยังไม่มีรายการเบิกจ่าย</td>
+            <td colspan="6" class="text-center py-4 text-gray-400">ยังไม่มีรายการเบิกจ่าย</td>
           </tr>
         </tbody>
       </table>
     </div>
+
+    <PaymentFileModal
+      :isOpen="showFileModal"
+      :payment="selectedPayment"
+      @close="showFileModal = false"
+    />
   </div>
 </template>
