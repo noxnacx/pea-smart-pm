@@ -4,16 +4,22 @@ import ProjectDetail from './Pages/ProjectDetail.vue';
 import ProjectsIndex from './Pages/ProjectsIndex.vue';
 import Login from './Pages/Login.vue';
 
+// *** เพิ่ม 2 บรรทัดนี้ที่หายไป ***
+import ProgramsIndex from './Pages/ProgramsIndex.vue';
+import UsersIndex from './Pages/UsersIndex.vue';
+import ProgramDetail from './Pages/ProgramDetail.vue';
+import MyProjects from './Pages/MyProjects.vue';
+
 const routes = [
     {
         path: '/login',
-        name: 'Login', // ตั้งชื่อให้ชัดเจน
+        name: 'Login',
         component: Login,
-        meta: { guest: true } // หน้าสำหรับคนยังไม่ล็อกอิน
+        meta: { guest: true }
     },
     {
         path: '/',
-        redirect: '/dashboard' // Redirect ไป Dashboard
+        redirect: '/dashboard'
     },
     {
         path: '/dashboard',
@@ -35,12 +41,24 @@ const routes = [
     },
     {
         path: '/programs',
+        name: 'programs.index', // ตั้งชื่อ route ไว้หน่อยก็ดีครับ
         component: ProgramsIndex,
-        meta: { requiresAuth: true } // ถ้าอยากเข้มงวดกว่านี้ ต้องเช็ค Role ใน router guard ด้วย
+        meta: { requiresAuth: true }
     },
     {
         path: '/users',
+        name: 'users.index', // ตั้งชื่อ route ไว้หน่อยก็ดีครับ
         component: UsersIndex,
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/programs/:id',
+        component: ProgramDetail,
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/my-projects',
+        component: MyProjects,
         meta: { requiresAuth: true }
     },
 ];
@@ -50,20 +68,15 @@ const router = createRouter({
     routes,
 });
 
-// *** Navigation Guard (ยามเฝ้าประตู) ***
 router.beforeEach((to, from, next) => {
-    // เปลี่ยนจากเช็ค isLoggedIn เป็นเช็ค Token ที่ได้จาก API
     const token = localStorage.getItem('auth_token');
 
-    // 1. ถ้าจะไปหน้า 'ต้องล็อกอิน' (requiresAuth) แต่ไม่มี Token -> ดีดไป Login
     if (to.meta.requiresAuth && !token) {
         next({ name: 'Login' });
     }
-    // 2. ถ้าจะไปหน้า 'Login' (guest) แต่มี Token แล้ว -> ดีดเข้า Dashboard เลย (ไม่ต้องล็อกอินซ้ำ)
     else if (to.meta.guest && token) {
         next({ name: 'dashboard' });
     }
-    // 3. กรณีปกติ -> ปล่อยผ่าน
     else {
         next();
     }

@@ -2,73 +2,86 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+
+// Import Controllers
+use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\TaskController;
-use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\BudgetController;
 use App\Http\Controllers\Api\AttachmentController;
+use App\Http\Controllers\Api\ProgramController;
+use App\Http\Controllers\Api\UserController;
 
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+*/
 
-
-
-// 1. เส้นทางสาธารณะ (ไม่ต้องล็อกอินก็เข้าได้)
+// 1. PUBLIC ROUTES
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout']);
 
-// 2. เส้นทางที่ "ต้องล็อกอิน" (Secure Zone)
+// 2. PROTECTED ROUTES
 Route::middleware('auth:sanctum')->group(function () {
 
-    // ดึงข้อมูล User ปัจจุบัน
+    // --- User Info ---
     Route::get('/user', [AuthController::class, 'me']);
 
-    // Dashboard
+    // --- Dashboard ---
     Route::get('/dashboard', [DashboardController::class, 'index']);
 
-    // Projects (โครงการ)
-    Route::get('/projects', [ProjectController::class, 'index']);
-    Route::post('/projects', [ProjectController::class, 'store']);
-    Route::get('/projects/{id}', [ProjectController::class, 'show']);
-    Route::put('/projects/{id}', [ProjectController::class, 'update']);
-    Route::delete('/projects/{id}', [ProjectController::class, 'destroy']);
+    // --- Projects (โครงการ) ---
+    Route::prefix('projects')->group(function () {
+        Route::get('/', [ProjectController::class, 'index']);
+        Route::post('/', [ProjectController::class, 'store']);
+
+        // ✅ แก้ไข: เส้นทางดูรายละเอียดโครงการ (Project Show)
+        Route::get('/{id}', [ProjectController::class, 'show']);
+
+        Route::put('/{id}', [ProjectController::class, 'update']);
+        Route::delete('/{id}', [ProjectController::class, 'destroy']);
+
+        // Project Sub-features
+        Route::post('/{id}/progress', [ProjectController::class, 'updateProgress']);
+        Route::post('/{id}/members', [ProjectController::class, 'addMember']);
+        Route::delete('/{id}/members/{userId}', [ProjectController::class, 'removeMember']);
+
+        // Financials inside Project
+        Route::get('/{id}/payments', [PaymentController::class, 'index']);
+        Route::get('/{id}/budget', [BudgetController::class, 'index']);
+    });
+
+    // --- Master Data Options ---
     Route::get('/master-data/project-options', [ProjectController::class, 'getOptions']);
+    Route::get('/users/search', [ProjectController::class, 'searchUsers']);
 
-    // Progress (อัปเดตความก้าวหน้า)
-    Route::post('/projects/{id}/progress', [ProjectController::class, 'updateProgress']);
-
-    // Tasks (งานย่อย)
+    // --- Tasks ---
     Route::post('/tasks', [TaskController::class, 'store']);
     Route::put('/tasks/{id}', [TaskController::class, 'update']);
     Route::delete('/tasks/{id}', [TaskController::class, 'destroy']);
+    Route::get('/tasks/{id}/logs', [TaskController::class, 'getLogs']);
 
-    // Payments (การเงิน)
-    Route::get('/projects/{id}/payments', [PaymentController::class, 'index']);
+    // --- Financials ---
     Route::post('/payments', [PaymentController::class, 'store']);
     Route::delete('/payments/{id}', [PaymentController::class, 'destroy']);
     Route::get('/payments/{id}/files', [PaymentController::class, 'getFiles']);
 
-    // อัปโหลดไฟล์
+    Route::post('/budget-items', [BudgetController::class, 'store']);
+    Route::delete('/budget-items/{id}', [BudgetController::class, 'destroy']);
+
+    // --- Files ---
+    Route::get('/attachments', [AttachmentController::class, 'index']);
     Route::post('/attachments/upload', [AttachmentController::class, 'upload']);
     Route::delete('/attachments/{id}', [AttachmentController::class, 'destroy']);
 
-    // ดึงประวัติของ Task รายตัว
-    Route::get('/tasks/{id}/logs', [TaskController::class, 'getLogs']);
-    Route::get('/attachments', [AttachmentController::class, 'index']);
+    // --- Admin Section ---
+    // Manage Programs (เส้นทางนี้จะสร้าง /api/programs/{id} ให้เอง ไม่ต้องไปใส่ใน projects)
+    Route::apiResource('programs', ProgramController::class);
 
-    // Team Management
-    Route::get('/users/search', [ProjectController::class, 'searchUsers']);
-    Route::post('/projects/{id}/members', [ProjectController::class, 'addMember']);
-    Route::delete('/projects/{id}/members/{userId}', [ProjectController::class, 'removeMember']);
+    // Manage Users
+    Route::apiResource('users', UserController::class);
 
-    // Admin: Manage Programs
-    Route::get('/programs', [App\Http\Controllers\Api\ProgramController::class, 'index']);
-    Route::post('/programs', [App\Http\Controllers\Api\ProgramController::class, 'store']);
-    Route::put('/programs/{id}', [App\Http\Controllers\Api\ProgramController::class, 'update']);
-    Route::delete('/programs/{id}', [App\Http\Controllers\Api\ProgramController::class, 'destroy']);
-
-    // Admin: Manage Users
-    Route::get('/users', [App\Http\Controllers\Api\UserController::class, 'index']);
-    Route::post('/users', [App\Http\Controllers\Api\UserController::class, 'store']);
-    Route::put('/users/{id}', [App\Http\Controllers\Api\UserController::class, 'update']);
-    Route::delete('/users/{id}', [App\Http\Controllers\Api\UserController::class, 'destroy']);
 });

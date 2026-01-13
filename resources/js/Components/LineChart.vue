@@ -1,43 +1,42 @@
-<template>
-  <div class="w-full h-80">
-    <Line :data="chartData" :options="chartOptions" />
-  </div>
-</template>
-
 <script setup>
 import { computed } from 'vue';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
-import { Line } from 'vue-chartjs';
-
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
 const props = defineProps(['data']);
 
-const chartData = computed(() => ({
-  labels: props.data.map(d => d.date), // วันที่แกน X
-  datasets: [
-    {
-      label: 'แผนงานสะสม (%)',
-      borderColor: '#3B82F6', // สีฟ้า
-      backgroundColor: '#3B82F6',
-      data: props.data.map(d => d.planned),
-      tension: 0.3
-    },
-    {
-      label: 'ผลงานจริง (%)',
-      borderColor: '#10B981', // สีเขียว
-      backgroundColor: '#10B981',
-      data: props.data.map(d => d.actual),
-      tension: 0.3
-    }
-  ]
-}));
+// แปลงข้อมูลให้เป็น Format ของ ApexCharts
+const series = computed(() => [{
+  name: 'แผนงานสะสม (%)',
+  data: props.data.map(d => d.planned)
+}, {
+  name: 'ผลงานจริงสะสม (%)',
+  data: props.data.map(d => d.actual)
+}]);
 
-const chartOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  scales: {
-    y: { beginAtZero: true, max: 100 }
-  }
-};
+const chartOptions = computed(() => ({
+  chart: {
+    type: 'line',
+    height: 350,
+    fontFamily: 'Sarabun, sans-serif',
+    toolbar: { show: false }
+  },
+  colors: ['#9CA3AF', '#7C3AED'], // สีเทา (แผน), สีม่วง (จริง)
+  stroke: { curve: 'smooth', width: 3 },
+  xaxis: {
+    categories: props.data.map(d => d.date), // วันที่แกน X
+    type: 'datetime',
+    labels: { format: 'dd MMM yy' }
+  },
+  yaxis: {
+    min: 0,
+    max: 100,
+    labels: { formatter: (val) => val.toFixed(0) }
+  },
+  tooltip: { x: { format: 'dd MMM yyyy' } },
+  legend: { position: 'top' },
+  grid: { borderColor: '#f1f1f1' }
+}));
 </script>
+
+<template>
+  <apexchart type="line" height="300" :options="chartOptions" :series="series"></apexchart>
+</template>

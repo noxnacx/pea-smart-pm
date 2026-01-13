@@ -17,9 +17,16 @@ class ProjectController extends Controller
         $user = $request->user();
         $query = Project::with('manager');
 
-        // 🔒 LOGIC กรองสิทธิ์: ถ้าไม่ใช่ Admin และไม่ใช่ Program Manager
-        // ให้เห็นเฉพาะโครงการที่ตัวเองเป็น PM หรือเป็นสมาชิกทีม
-        if ($user->role !== 'admin' && $user->role !== 'program_manager') {
+        // 1. กรองตามแผนงาน (ถ้ามีการส่ง program_id มา)
+        if ($request->has('program_id')) {
+            $query->where('program_id', $request->program_id);
+        }
+
+        // 2. กรอง "โครงการของฉัน" (My Projects)
+        // ถ้าส่ง parameter ?scope=my_projects มา หรือ ถ้าไม่ใช่ Admin/Manager (ระบบบังคับดูได้แค่ของตัวเอง)
+        $forceMyProjects = $request->get('scope') === 'my_projects';
+
+        if ($forceMyProjects || ($user->role !== 'admin' && $user->role !== 'program_manager')) {
             $query->where(function($q) use ($user) {
                 $q->where('manager_id', $user->id)
                   ->orWhereHas('members', function($m) use ($user) {
@@ -28,7 +35,7 @@ class ProjectController extends Controller
             });
         }
 
-        // 1. ระบบค้นหา (ถ้ามีการส่งคำค้นมา)
+        // 3. ระบบค้นหา (Search)
         if ($request->has('search') && $request->search != '') {
             $search = $request->search;
             $query->where(function($q) use ($search) {
@@ -37,12 +44,12 @@ class ProjectController extends Controller
             });
         }
 
-        // 2. ระบบกรองสถานะ
+        // 4. กรองสถานะ
         if ($request->has('status') && $request->status != 'all') {
             $query->where('status', $request->status);
         }
 
-        // เรียงลำดับล่าสุดก่อน และแบ่งหน้า (Pagination) ทีละ 10 รายการ
+        // เรียงลำดับและแบ่งหน้า
         $projects = $query->orderBy('updated_at', 'desc')->paginate(10);
 
         return response()->json($projects);

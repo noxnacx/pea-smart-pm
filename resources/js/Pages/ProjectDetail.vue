@@ -4,11 +4,12 @@ import GanttChart from '../Components/GanttChart.vue';
 import TaskModal from '../Components/TaskModal.vue';
 import ProjectModal from '../Components/ProjectModal.vue';
 import PaymentManager from '../Components/PaymentManager.vue';
+import BudgetManager from '../Components/BudgetManager.vue';
 import ProgressModal from '../Components/ProgressModal.vue';
 import TaskHistoryModal from '../Components/TaskHistoryModal.vue';
 import FileModal from '../Components/FileModal.vue';
 import TeamMemberModal from '../Components/TeamMemberModal.vue';
-import { ref, onMounted, computed } from 'vue'; // <--- เพิ่ม computed
+import { ref, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import axios from 'axios';
 
@@ -18,11 +19,11 @@ const project = ref({});
 const budgetSummary = ref({});
 const lastUpdateInfo = ref(null);
 const riskAnalysis = ref(null);
-const currentUser = ref(null); // <--- เก็บข้อมูลคนล็อกอิน
+const currentUser = ref(null);
 
 // Permission Flags
-const canManageProject = ref(false); // สำหรับ PM/Admin (แก้โครงสร้าง)
-const canUpdateWork = ref(false);    // สำหรับ Member (อัปเดตงาน)
+const canManageProject = ref(false); // สำหรับ PM/Admin
+const canUpdateWork = ref(false);    // สำหรับ Member
 
 const statusLabels = {
   'ongoing': 'กำลังดำเนินการ',
@@ -40,10 +41,8 @@ const showTeamModal = ref(false);
 const taskToEdit = ref(null);
 const selectedTaskHistory = ref(null);
 
-// ดึงข้อมูล User ปัจจุบันก่อน
 const fetchCurrentUser = async () => {
     try {
-        // ดึงจาก LocalStorage หรือ API ก็ได้ แต่ API ชัวร์กว่า
         const res = await axios.get('/api/user');
         currentUser.value = res.data;
     } catch (e) {
@@ -61,20 +60,12 @@ const fetchProjectDetail = async () => {
     lastUpdateInfo.value = response.data.last_update;
     riskAnalysis.value = response.data.risk_analysis;
 
-    // --- 🔐 คำนวณสิทธิ์ (Authorization Logic) ---
     if (currentUser.value) {
         const isAdmin = currentUser.value.role === 'admin';
-        const isPgM = currentUser.value.role === 'program_manager'; // ถ้ามี Role นี้
         const isPM = project.value.manager_id === currentUser.value.id;
-
-        // เช็คว่าเป็น Member ในทีมไหม?
         const isMember = project.value.members?.some(m => m.id === currentUser.value.id);
 
-        // 1. สิทธิ์จัดการโครงสร้าง (Admin หรือ PM)
         canManageProject.value = isAdmin || isPM;
-
-        // 2. สิทธิ์อัปเดตงาน (Admin, PM, หรือ Member)
-        // (Program Manager อาจจะดูได้อย่างเดียว หรือช่วยแก้ได้ แล้วแต่นโยบาย)
         canUpdateWork.value = isAdmin || isPM || isMember;
     }
 
@@ -144,7 +135,7 @@ const formatDateTime = (dateString) => {
 };
 
 onMounted(async () => {
-    await fetchCurrentUser(); // รอ user ก่อน
+    await fetchCurrentUser();
     fetchProjectDetail();
 });
 </script>
@@ -262,6 +253,13 @@ onMounted(async () => {
              <span>💰</span> การบริหารงบประมาณและการเบิกจ่าย
            </h3>
            <PaymentManager :projectId="project.id" :contractAmount="project.contract_amount" />
+
+           <div class="mt-8 border-t pt-6" v-if="project.id">
+                <h3 class="font-bold text-xl text-gray-800 mb-4 flex items-center gap-2">
+                    <span>📊</span> การจัดสรรงบประมาณ (BOQ Breakdown)
+                </h3>
+                <BudgetManager :projectId="project.id" :contractAmount="project.contract_amount" />
+            </div>
         </div>
 
         <div v-if="project.tasks && project.tasks.length > 0">
