@@ -28,7 +28,7 @@
         <span v-if="!isCollapsed">ภาพรวม (Dashboard)</span>
       </router-link>
 
-      <div v-if="isAdmin" class="mt-2 pt-2 border-t border-purple-800">
+      <div v-if="canManageProjects" class="mt-2 pt-2 border-t border-purple-800">
           <div v-if="!isCollapsed" class="px-6 mb-2 text-xs font-bold text-purple-300 uppercase tracking-wider">
              ส่วนบริหารงาน
           </div>
@@ -55,7 +55,7 @@
           </router-link>
       </div>
 
-      <div v-if="isAdmin" class="mt-auto">
+      <div v-if="isSystemAdmin" class="mt-auto">
         <div class="border-t border-purple-800 mt-2 pt-2">
             <router-link to="/users" class="flex items-center gap-4 px-6 py-3 hover:bg-purple-700 transition-colors border-l-4 border-transparent hover:border-white group" active-class="bg-purple-800 border-l-4 border-white">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 min-w-[24px]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
@@ -79,13 +79,21 @@ import { ref, onMounted } from 'vue';
 defineProps(['isCollapsed']);
 defineEmits(['toggle']);
 
-const isAdmin = ref(false);
+// แยกตัวแปรเช็คสิทธิ์เพื่อให้ละเอียดขึ้น
+const canManageProjects = ref(false); // สำหรับ Admin และ Program Manager
+const isSystemAdmin = ref(false);     // สำหรับ Admin เท่านั้น
 
 onMounted(() => {
-    // เช็คสิทธิ์จาก LocalStorage (ง่ายและเร็ว)
+    // ดึงข้อมูล User จาก LocalStorage
     const user = JSON.parse(localStorage.getItem('user_info') || '{}');
-    // Admin และ Program Manager เห็นเมนูบริหาร
-    isAdmin.value = user.role === 'admin' || user.role === 'program_manager';
+
+    // 1. สิทธิ์เห็นเมนู "ส่วนบริหารงาน" (Programs, All Projects)
+    // เงื่อนไข: เป็น admin หรือ program_manager
+    canManageProjects.value = ['admin', 'program_manager'].includes(user.role);
+
+    // 2. สิทธิ์เห็นเมนู "จัดการผู้ใช้งาน" (Users)
+    // เงื่อนไข: ต้องเป็น admin เท่านั้น
+    isSystemAdmin.value = user.role === 'admin';
 });
 </script>
 
