@@ -17,6 +17,7 @@ import { ref } from 'vue';
 import Sidebar from './Sidebar.vue';
 import Navbar from './Navbar.vue';
 
+
 const isCollapsed = ref(false);
 
 const toggleSidebar = () => {

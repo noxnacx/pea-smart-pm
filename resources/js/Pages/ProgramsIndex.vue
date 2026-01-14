@@ -13,7 +13,7 @@ const showModal = ref(false);
 const form = ref({
   id: null,
   name: '',
-  fiscal_year: new Date().getFullYear() + 543,
+  fiscal_year: new Date().getFullYear() + 543, // ค่าเริ่มต้นเป็นปี พ.ศ. ปัจจุบัน
   total_budget: 0,
   start_date: '',
   end_date: '',
@@ -34,8 +34,10 @@ const fetchPrograms = async () => {
 
 const openModal = (program = null) => {
   if (program) {
+    // โหมดแก้ไข: copy ข้อมูลมาใส่ฟอร์ม
     form.value = { ...program };
   } else {
+    // โหมดสร้างใหม่: reset ค่า
     form.value = {
       id: null,
       name: '',
@@ -52,12 +54,31 @@ const openModal = (program = null) => {
 
 const save = async () => {
   try {
-    if (form.value.id) await axios.put(`/api/programs/${form.value.id}`, form.value);
-    else await axios.post('/api/programs', form.value);
+    // สร้าง payload แยกออกมาเพื่อปรับแต่งข้อมูลก่อนส่ง (ไม่กระทบหน้าจอ)
+    const payload = { ...form.value };
+
+    // 1. แปลงปีเป็น String เพื่อความชัวร์ (Backend validate size:4 ต้องการ string)
+    payload.fiscal_year = String(payload.fiscal_year);
+
+    // 2. ✅ แก้บั๊ก: แปลงวันที่ว่าง "" ให้เป็น null (Backend จะได้ไม่มองว่าเป็น invalid date)
+    if (payload.start_date === '') payload.start_date = null;
+    if (payload.end_date === '') payload.end_date = null;
+
+    // ส่งข้อมูล
+    if (payload.id) {
+        await axios.put(`/api/programs/${payload.id}`, payload);
+    } else {
+        await axios.post('/api/programs', payload);
+    }
+
     showModal.value = false;
     fetchPrograms();
     alert('บันทึกสำเร็จ');
-  } catch (e) { alert('เกิดข้อผิดพลาด กรุณาตรวจสอบข้อมูล'); }
+  } catch (e) {
+    console.error(e);
+    // แสดง Error ที่ Backend ส่งกลับมาให้ชัดเจน
+    alert(e.response?.data?.message || 'เกิดข้อผิดพลาด กรุณาตรวจสอบข้อมูล');
+  }
 };
 
 const remove = async (id) => {
@@ -65,7 +86,9 @@ const remove = async (id) => {
   try {
     await axios.delete(`/api/programs/${id}`);
     fetchPrograms();
-  } catch (e) { alert(e.response?.data?.message || 'ลบไม่สำเร็จ'); }
+  } catch (e) {
+    alert(e.response?.data?.message || 'ลบไม่สำเร็จ');
+  }
 };
 
 // ฟังก์ชันไปหน้าดูรายละเอียด (Drill-down)

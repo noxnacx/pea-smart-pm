@@ -88,4 +88,5 @@ Route::middleware('auth:sanctum')->group(function () {
     // Manage Users
     Route::apiResource('users', UserController::class);
 
+    Route::get('/calendar/events', [TaskController::class, 'calendarEvents']);
 });

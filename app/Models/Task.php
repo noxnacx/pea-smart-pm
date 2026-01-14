@@ -9,24 +9,27 @@ class Task extends Model
 {
     use HasFactory;
 
-    protected $fillable = [
-        'project_id',
-        'parent_id',
-        'name',
-        'weight',
-        'progress',
-        'start_date',
-        'end_date',
-        'user_id' // <--- 1. เพิ่มตรงนี้
-    ];
+    protected $guarded = []; // ใช้ guarded แทน fillable เพื่อความยืดหยุ่น (หรือใช้ fillable แบบเดิมก็ได้)
 
-    // 2. เพิ่มฟังก์ชันดึงชื่อคน
+    // 1. ความสัมพันธ์กับ Project (✅ ตัวที่ขาดหายไป)
+    public function project()
+    {
+        return $this->belongsTo(Project::class);
+    }
+
+    // 2. ความสัมพันธ์กับ User (คนสร้าง/เจ้าของงาน)
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    // เพิ่มใน Task.php
+    // 3. ความสัมพันธ์กับ Users (ทีมงานที่รับผิดชอบ - Many to Many)
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'task_user');
+    }
+
+    // --- Relations อื่นๆ ---
     public function progressLogs()
     {
         return $this->hasMany(TaskProgressLog::class)->orderBy('created_at', 'desc');
@@ -37,9 +40,18 @@ class Task extends Model
         return $this->morphMany(Attachment::class, 'attachable');
     }
 
-
     public function comments()
     {
         return $this->morphMany(Comment::class, 'commentable')->orderBy('created_at', 'desc');
+    }
+
+    public function predecessor()
+    {
+        return $this->belongsTo(Task::class, 'predecessor_id');
+    }
+
+    public function successors()
+    {
+        return $this->hasMany(Task::class, 'predecessor_id');
     }
 }

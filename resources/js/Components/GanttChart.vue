@@ -25,20 +25,28 @@ const series = computed(() => {
   if (!props.tasks) return [{ data: [] }];
 
   const data = props.tasks.map(task => {
+    // หาชื่องานแม่ (ถ้ามี)
+    const predecessorName = task.predecessor_id
+        ? props.tasks.find(t => t.id === task.predecessor_id)?.name
+        : null;
+
     return {
       x: task.name, // แกน X คือชื่องาน
       y: [
-        new Date(task.start_date).getTime(), // เวลาเริ่ม (ต้องแปลงเป็น Timestamp)
+        new Date(task.start_date).getTime(), // เวลาเริ่ม
         new Date(task.end_date).getTime()    // เวลาจบ
       ],
-      fillColor: getColor(task) // เลือกสีตามสถานะ
+      fillColor: getColor(task),
+      // ✅ ฝากข้อมูลไว้ใช้ใน Tooltip
+      meta: {
+          predecessor: predecessorName
+      }
     };
   });
 
   return [{ data: data }];
 });
 
-// ฟังก์ชันเลือกสี: ถ้าเสร็จแล้วสีเขียว, ยังไม่เสร็จสีฟ้า
 const getColor = (task) => {
   if (task.progress == 100) return '#10B981'; // เขียว
   return '#3B82F6'; // ฟ้า
@@ -48,27 +56,45 @@ const getColor = (task) => {
 const chartOptions = {
   chart: {
     type: 'rangeBar',
-    toolbar: { show: false } // ปิดเมนูหัวกราฟ
+    toolbar: { show: false }
   },
   plotOptions: {
     bar: {
-      horizontal: true, // แนวนอน
+      horizontal: true,
       barHeight: '50%',
       borderRadius: 4
     }
   },
   xaxis: {
-    type: 'datetime', // แกนล่างเป็นวันที่
+    type: 'datetime',
     labels: {
-      format: 'dd MMM', // รูปแบบวันที่ (เช่น 12 Jan)
+      format: 'dd MMM',
       style: { colors: '#64748b' }
     }
   },
-  tooltip: {
-    x: { format: 'dd MMM yyyy' } // Tooltip ตอนเอาเมาส์ชี้
-  },
   grid: {
-    strokeDashArray: 4, // เส้นประพื้นหลัง
+    strokeDashArray: 4,
+  },
+  // ✅ ปรับแต่ง Tooltip
+  tooltip: {
+    custom: function({ series, seriesIndex, dataPointIndex, w }) {
+        const data = w.globals.initialSeries[seriesIndex].data[dataPointIndex];
+        const startDate = new Date(data.y[0]).toLocaleDateString('th-TH');
+        const endDate = new Date(data.y[1]).toLocaleDateString('th-TH');
+
+        // ถ้ามีงานก่อนหน้า ให้โชว์เตือนสีแดง
+        const predText = data.meta.predecessor
+            ? `<div class="text-xs text-red-500 mt-2 pt-2 border-t border-gray-200">🔒 <b>เงื่อนไข:</b> ต้องรอ "${data.meta.predecessor}" เสร็จก่อน</div>`
+            : '';
+
+        return `
+            <div class="px-4 py-3 bg-white border border-gray-200 shadow-xl rounded-lg text-sm text-gray-700">
+                <div class="font-bold text-base mb-1 text-purple-700">${data.x}</div>
+                <div class="text-gray-500">📅 ${startDate} - ${endDate}</div>
+                ${predText}
+            </div>
+        `;
+    }
   }
 };
 </script>

@@ -3,6 +3,7 @@ import Dashboard from './Pages/Dashboard.vue';
 import ProjectDetail from './Pages/ProjectDetail.vue';
 import ProjectsIndex from './Pages/ProjectsIndex.vue';
 import Login from './Pages/Login.vue';
+import Calendar from './Pages/Calendar.vue';
 
 // *** เพิ่ม 2 บรรทัดนี้ที่หายไป ***
 import ProgramsIndex from './Pages/ProgramsIndex.vue';
@@ -59,6 +60,12 @@ const routes = [
     {
         path: '/my-projects',
         component: MyProjects,
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/calendar',
+        name: 'calendar',
+        component: Calendar,
         meta: { requiresAuth: true }
     },
 ];
