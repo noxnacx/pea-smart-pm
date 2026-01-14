@@ -5,7 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Project;
-use App\Models\Program;
+use App\Models\Task;
+use App\Models\Payment; // ✅ เพิ่ม model Payment
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
@@ -14,49 +15,55 @@ class DashboardController extends Controller
     {
         $user = $request->user();
 
-        // เริ่มต้น Query
-        $query = Project::query();
-
-        // 🔒 LOGIC กรองสิทธิ์: ถ้าไม่ใช่ Admin และไม่ใช่ Program Manager
-        // ให้ดูได้แค่ "โครงการที่เป็น PM" หรือ "โครงการที่เป็นสมาชิกทีม"
+        // --- 1. Query โครงการตามสิทธิ์ ---
+        $projectQuery = Project::query();
         if ($user->role !== 'admin' && $user->role !== 'program_manager') {
-            $query->where(function($q) use ($user) {
-                // 1. เป็น PM ของโครงการนั้น
+            $projectQuery->where(function($q) use ($user) {
                 $q->where('manager_id', $user->id)
-                  // 2. หรือ เป็นสมาชิกในทีม (เช็คผ่าน Relation members)
                   ->orWhereHas('members', function($m) use ($user) {
                       $m->where('user_id', $user->id);
                   });
             });
         }
+        $projects = $projectQuery->get();
+        $projectIds = $projects->pluck('id');
 
-        // ดึงข้อมูลโครงการตามสิทธิ์ที่กรองแล้ว
-        $projects = $query->get();
+        // --- 2. สรุปตัวเลข (Stats) ---
+        $totalBudget = $projects->sum('contract_amount');
 
-        // 1. คำนวณตัวเลขสรุป (จากข้อมูลที่กรองแล้ว)
-        $totalProjects = $projects->count();
-        $totalBudget = $projects->sum('contract_amount'); // คำนวณจากโครงการที่เห็น
-        $ongoingProjects = $projects->where('status', 'ongoing')->count();
-        $lateProjects = $projects->where('status', 'late')->count();
+        // ✅ เพิ่ม: คำนวณยอดเบิกจ่ายจริง (Total Paid)
+        $totalPaid = Payment::whereIn('project_id', $projectIds)->sum('amount');
+        $budgetUsagePercent = $totalBudget > 0 ? ($totalPaid / $totalBudget) * 100 : 0;
 
-        // 2. ข้อมูลกราฟวงกลม (สถานะ) - ต้องนับจาก Collection เพราะ Query ถูกกรองมาแล้ว
-        $projectStatus = [
-            ['status' => 'ongoing', 'total' => $ongoingProjects],
-            ['status' => 'late', 'total' => $lateProjects],
-            ['status' => 'completed', 'total' => $projects->where('status', 'completed')->count()],
-            ['status' => 'draft', 'total' => $projects->where('status', 'draft')->count()],
+        // ✅ เพิ่ม: งานที่ฉันต้องทำ (My Pending Tasks)
+        $myPendingTasks = Task::whereHas('users', function($q) use ($user) {
+            $q->where('users.id', $user->id);
+        })->where('progress', '<', 100)->count();
+
+        $stats = [
+            'total_projects' => $projects->count(),
+            'total_budget' => $totalBudget,
+            'total_paid' => $totalPaid, // ส่งยอดจ่ายไปด้วย
+            'budget_usage' => round($budgetUsagePercent, 2),
+            'ongoing' => $projects->where('status', 'ongoing')->count(),
+            'late' => $projects->where('status', 'late')->count(),
+            'completed' => $projects->where('status', 'completed')->count(),
+            'my_pending_tasks' => $myPendingTasks // ส่งจำนวนงานค้าง
         ];
 
-        // 3. ข้อมูลกราฟ S-Curve (ดึงตัวอย่างจากโครงการแรกที่เห็น)
-        $sCurveData = [];
-        // เลือกโครงการที่มีประวัติความก้าวหน้ามาโชว์สักอัน (หรืออันที่ Active ล่าสุด)
-        $sampleProject = Project::whereIn('id', $projects->pluck('id'))
+        // --- 3. กราฟ S-Curve (ฉลาดขึ้น: เลือกโครงการที่งบเยอะสุดที่ยังไม่เสร็จ) ---
+        $highlightProject = Project::whereIn('id', $projectIds)
+                            ->where('status', '!=', 'draft')
+                            ->orderBy('contract_amount', 'desc') // เอางบเยอะสุด
                             ->with('progressHistory')
-                            ->whereHas('progressHistory')
                             ->first();
 
-        if ($sampleProject) {
-            $sCurveData = $sampleProject->progressHistory->map(function ($history) {
+        $sCurveData = [];
+        $highlightProjectName = "";
+
+        if ($highlightProject && $highlightProject->progressHistory->isNotEmpty()) {
+            $highlightProjectName = $highlightProject->name;
+            $sCurveData = $highlightProject->progressHistory->map(function ($history) {
                 return [
                     'date' => $history->date_logged->format('Y-m-d'),
                     'planned' => $history->planned_percent,
@@ -65,34 +72,38 @@ class DashboardController extends Controller
             });
         }
 
-        // 4. รายชื่อโครงการล่าสุด (5 อันดับแรกของผู้ใช้นั้น)
+        // --- 4. โครงการล่าช้า (Critical Projects) ---
+        $criticalProjects = $projects->where('status', 'late')->take(5)->map(function($p) {
+             return [
+                 'id' => $p->id,
+                 'name' => $p->name,
+                 'progress' => $p->progress_actual
+             ];
+        })->values();
+
+        // --- 5. โครงการล่าสุด ---
         $recentProjects = Project::with(['manager'])
-            ->whereIn('id', $projects->pluck('id')) // กรองตาม ID ที่มีสิทธิ์
+            ->whereIn('id', $projectIds)
             ->orderBy('updated_at', 'desc')
             ->take(5)
             ->get()
             ->map(function ($project) {
-                $managerName = optional($project->manager)->name ?? 'ไม่ระบุ';
                 return [
                     'id' => $project->id,
                     'name' => $project->name,
-                    'manager' => $managerName,
-                    'budget' => number_format($project->contract_amount),
+                    'manager' => optional($project->manager)->name ?? '-',
                     'status' => $project->status,
                     'progress' => $project->progress_actual ?? 0,
+                    'due_date' => $project->end_date ? $project->end_date->format('d/m/Y') : '-'
                 ];
             });
 
         return response()->json([
-            'role' => $user->role, // ส่ง Role กลับไปบอกหน้าบ้าน
-            'stats' => [
-                'total_projects' => $totalProjects,
-                'total_budget' => $totalBudget,
-                'ongoing' => $ongoingProjects,
-                'late' => $lateProjects,
-            ],
-            'chart_status' => $projectStatus,
+            'role' => $user->role,
+            'stats' => $stats,
             'chart_scurve' => $sCurveData,
+            'chart_title' => $highlightProjectName, // ส่งชื่อโครงการของกราฟไปด้วย
+            'critical_projects' => $criticalProjects,
             'recent_projects' => $recentProjects,
         ]);
     }
