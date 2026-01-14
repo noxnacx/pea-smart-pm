@@ -100,7 +100,11 @@ onMounted(() => fetchDashboardData());
 
     <div v-else class="space-y-6">
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group hover:border-purple-200 transition-all">
+
+        <div
+            @click="router.push('/projects')"
+            class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group hover:border-purple-200 transition-all cursor-pointer hover:shadow-md"
+        >
            <div>
               <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">โครงการทั้งหมด</p>
               <h3 class="text-3xl font-extrabold text-gray-800 mt-1">{{ stats?.total_projects ?? 0 }}</h3>
@@ -140,7 +144,10 @@ onMounted(() => fetchDashboardData());
            </div>
         </div>
 
-        <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between hover:border-red-200 transition-all">
+        <div
+            @click="router.push({ path: '/projects', query: { status: 'late' } })"
+            class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between hover:border-red-200 transition-all cursor-pointer hover:shadow-md"
+        >
            <div>
               <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">โครงการล่าช้า</p>
               <h3 class="text-3xl font-extrabold text-gray-800 mt-1">{{ stats?.late ?? 0 }}</h3>
