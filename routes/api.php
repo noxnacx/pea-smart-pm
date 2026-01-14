@@ -14,7 +14,7 @@ use App\Http\Controllers\Api\AttachmentController;
 use App\Http\Controllers\Api\ProgramController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\CommentController;
-
+use App\Http\Controllers\Api\NotificationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -89,4 +89,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('users', UserController::class);
 
     Route::get('/calendar/events', [TaskController::class, 'calendarEvents']);
+    Route::get('/my-tasks', [TaskController::class, 'myTasks']);
+
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::get('/notifications/unread', [NotificationController::class, 'unreadCount']);
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+
+
 });

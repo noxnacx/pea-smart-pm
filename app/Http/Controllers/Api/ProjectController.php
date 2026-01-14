@@ -58,7 +58,7 @@ class ProjectController extends Controller
     public function show($id)
     {
         $user = auth()->user();
-        $project = \App\Models\Project::with(['manager', 'tasks.user', 'members','tasks.users'])->findOrFail($id);
+        $project = \App\Models\Project::with(['manager', 'tasks.user', 'members','tasks.users','tasks.progressLogs.user','tasks.attachments'])->findOrFail($id);
 
         // เช็คสิทธิ์การแก้ไข (เผื่อเอาไปใช้ซ่อนปุ่มใน Frontend)
         $canEdit = $user->role === 'admin' || $project->manager_id === $user->id;

@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use App\Models\Task;
 use App\Models\TaskProgressLog;
 use Illuminate\Support\Facades\DB;
+use App\Notifications\TaskAssigned; // Import Notification
+use Illuminate\Support\Facades\Notification; // Import Facade
 
 class TaskController extends Controller
 {
@@ -33,16 +35,25 @@ class TaskController extends Controller
         }
 
         DB::transaction(function () use ($validated, $request) {
-            // สร้าง Task และเก็บ user_id (คนสร้าง)
-            $task = Task::create(array_merge($validated, [
+            // ✅ เตรียมข้อมูล: เอา user_ids ออกก่อนบันทึกลงตาราง tasks
+            $taskData = $validated;
+            unset($taskData['user_ids']);
+
+            // 1. สร้าง Task
+            $task = Task::create(array_merge($taskData, [
                 'user_id' => $request->user()->id
             ]));
 
-            // บันทึกผู้รับผิดชอบหลายคน (ถ้ามี)
+            // 2. บันทึกผู้รับผิดชอบ (Sync) และส่งแจ้งเตือน
             if (!empty($validated['user_ids'])) {
                 $task->users()->sync($validated['user_ids']);
+
+                // ส่ง Notification
+                $assignees = \App\Models\User::whereIn('id', $validated['user_ids'])->get();
+                Notification::send($assignees, new TaskAssigned($task));
             }
 
+            // 3. Log
             TaskProgressLog::create([
                 'task_id' => $task->id,
                 'progress_percent' => $task->progress ?? 0,
@@ -71,11 +82,16 @@ class TaskController extends Controller
             'user_ids.*' => 'exists:users,id'
         ]);
 
-        // Dependency Check... (ละไว้เหมือนเดิม)
+        // Dependency Check (ละไว้เหมือนเดิม)
 
         DB::transaction(function () use ($task, $validated, $request, $oldProgress) {
-            $task->update($validated);
+            // ✅ เตรียมข้อมูล: เอา user_ids ออก
+            $taskData = $validated;
+            unset($taskData['user_ids']);
 
+            $task->update($taskData);
+
+            // อัปเดตผู้รับผิดชอบ
             if (isset($validated['user_ids'])) {
                 $task->users()->sync($validated['user_ids']);
             }
@@ -102,21 +118,23 @@ class TaskController extends Controller
     }
 
     // 4. ดึง Log
+    // 4. ดึง Log และ ไฟล์แนบ (แก้ไขแล้ว)
     public function getLogs($id)
     {
-        $task = Task::with(['progressLogs.user'])->findOrFail($id);
-        return response()->json($task->progressLogs);
+        // ดึง Task พร้อมกับ Logs (และคนบันทึก) และ Attachments
+        $task = Task::with(['progressLogs.user', 'attachments'])->findOrFail($id);
+
+        // ส่งกลับเป็น Object แยก key ให้หน้าบ้านใช้ง่ายๆ
+        return response()->json([
+            'progress_logs' => $task->progressLogs,
+            'attachments' => $task->attachments
+        ]);
     }
 
-    // ✅ 5. ดึงข้อมูลปฏิทิน (แก้ไขแล้ว)
+    // 5. ปฏิทิน
     public function calendarEvents(Request $request)
     {
         $user = $request->user();
-
-        // ดึงงานที่:
-        // 1. เป็นผู้รับผิดชอบ (ในตาราง pivot task_user)
-        // 2. หรือ เป็นคนสร้าง/เจ้าของงาน (user_id ในตาราง tasks)
-        // 3. หรือ เป็น PM ของโครงการ
         $tasks = Task::with(['project', 'users'])
             ->where(function($query) use ($user) {
                 $query->whereHas('users', function($q) use ($user) {
@@ -130,12 +148,10 @@ class TaskController extends Controller
             ->get();
 
         $events = $tasks->map(function($task) {
-            // กำหนดสี
-            $color = '#3B82F6'; // ฟ้า
-            if ($task->progress == 100) $color = '#10B981'; // เขียว
-            else if (strtotime($task->end_date) < now()->timestamp) $color = '#EF4444'; // แดง
+            $color = '#3B82F6';
+            if ($task->progress == 100) $color = '#10B981';
+            else if (strtotime($task->end_date) < now()->timestamp) $color = '#EF4444';
 
-            // ป้องกัน Error กรณี project ถูกลบไปแล้ว
             $projectCode = $task->project ? $task->project->code : '-';
             $projectName = $task->project ? $task->project->name : 'ไม่ระบุโครงการ';
 
@@ -155,5 +171,22 @@ class TaskController extends Controller
         });
 
         return response()->json($events);
+    }
+
+    // 6. My Tasks
+    public function myTasks(Request $request)
+    {
+        $user = $request->user();
+        $tasks = Task::with(['project', 'users'])
+            ->where(function($query) use ($user) {
+                $query->whereHas('users', function($q) use ($user) {
+                    $q->where('users.id', $user->id);
+                })
+                ->orWhere('user_id', $user->id);
+            })
+            ->orderBy('end_date', 'asc')
+            ->get();
+
+        return response()->json($tasks);
     }
 }

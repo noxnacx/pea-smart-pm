@@ -1,6 +1,48 @@
 <template>
   <nav class="bg-white border-b border-gray-200 px-6 py-3 flex justify-end items-center sticky top-0 z-30 h-16 shadow-sm">
     <div class="flex items-center gap-4">
+
+      <div class="relative" ref="bellRef">
+        <button
+          @click="toggleNotifications"
+          class="p-2 rounded-full text-gray-500 hover:bg-purple-50 hover:text-purple-600 transition-colors relative"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          </svg>
+          <span v-if="unreadCount > 0" class="absolute top-1 right-1 h-4 w-4 bg-red-500 rounded-full text-[10px] font-bold text-white flex items-center justify-center border border-white">
+            {{ unreadCount > 9 ? '9+' : unreadCount }}
+          </span>
+        </button>
+
+        <div v-if="showNotifications" class="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden z-50 animate-fade-in-up">
+            <div class="p-3 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                <h3 class="font-bold text-gray-700 text-sm">การแจ้งเตือน</h3>
+                <button v-if="unreadCount > 0" @click="markAllRead" class="text-xs text-purple-600 hover:underline">อ่านทั้งหมด</button>
+            </div>
+            <div class="max-h-80 overflow-y-auto custom-scrollbar">
+                <div v-if="notifications.length === 0" class="p-8 text-center text-gray-400 text-sm">
+                    ไม่มีการแจ้งเตือนใหม่
+                </div>
+                <div
+                    v-for="noti in notifications"
+                    :key="noti.id"
+                    @click="handleNotificationClick(noti)"
+                    class="p-3 border-b border-gray-50 hover:bg-purple-50 cursor-pointer transition-colors flex gap-3"
+                    :class="{'bg-white': !!noti.read_at, 'bg-blue-50/50': !noti.read_at}"
+                >
+                    <div class="mt-1">
+                        <div class="w-2 h-2 rounded-full" :class="!noti.read_at ? 'bg-blue-500' : 'bg-transparent'"></div>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-800 font-medium leading-tight">{{ noti.data.message }}</p>
+                        <p class="text-xs text-gray-500 mt-1">{{ formatDate(noti.created_at) }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+      </div>
+
       <div class="text-right hidden md:block">
         <div class="text-sm font-bold text-gray-700">{{ user.name }}</div>
         <div class="text-xs text-gray-500">{{ user.email }}</div>
@@ -12,66 +54,113 @@
 
       <div class="h-6 w-px bg-gray-300 mx-2"></div>
 
-      <button
-        @click="handleLogout"
-        class="text-gray-500 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition-colors"
-        title="ออกจากระบบ"
-      >
+      <button @click="handleLogout" class="text-gray-500 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition-colors" title="ออกจากระบบ">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
         </svg>
       </button>
     </div>
   </nav>
+
+  <div v-if="showNotifications" @click="showNotifications = false" class="fixed inset-0 z-20 cursor-default"></div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import axios from 'axios';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
 const user = ref({ name: 'User', email: '' });
+const notifications = ref([]);
+const unreadCount = ref(0);
+const showNotifications = ref(false);
+let pollingInterval = null;
 
+const fetchNotifications = async () => {
+    try {
+        const [resList, resCount] = await Promise.all([
+            axios.get('/api/notifications'),
+            axios.get('/api/notifications/unread')
+        ]);
+        notifications.value = resList.data;
+        unreadCount.value = resCount.data.count;
+    } catch (e) { console.error("Fetch noti error"); }
+};
+
+const toggleNotifications = () => {
+    showNotifications.value = !showNotifications.value;
+    if (showNotifications.value) fetchNotifications(); // โหลดใหม่เมื่อเปิด
+};
+
+const markAllRead = async () => {
+    await axios.post('/api/notifications/read-all');
+    fetchNotifications();
+};
+
+const handleNotificationClick = async (noti) => {
+    // 1. Mark as read
+    if (!noti.read_at) {
+        await axios.post(`/api/notifications/${noti.id}/read`);
+        unreadCount.value = Math.max(0, unreadCount.value - 1);
+        noti.read_at = new Date().toISOString(); // อัปเดต UI ทันที
+    }
+    // 2. ปิด Dropdown
+    showNotifications.value = false;
+
+    // 3. ไปยังลิงก์
+    if (noti.data.link) {
+        router.push(noti.data.link);
+    }
+};
+
+const formatDate = (date) => {
+    const d = new Date(date);
+    const now = new Date();
+    const diff = (now - d) / 1000; // วินาที
+
+    if (diff < 60) return 'เมื่อสักครู่';
+    if (diff < 3600) return Math.floor(diff/60) + ' นาทีที่แล้ว';
+    if (diff < 86400) return Math.floor(diff/3600) + ' ชั่วโมงที่แล้ว';
+    return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+};
+
+// ... (ส่วน Logout เดิม) ...
 onMounted(async () => {
-  // ดึงข้อมูล User จาก LocalStorage ก่อน (เพื่อให้แสดงผลทันที ไม่ต้องรอ API)
   const storedUser = localStorage.getItem('user_info');
-  if (storedUser) {
-    user.value = JSON.parse(storedUser);
-  }
+  if (storedUser) user.value = JSON.parse(storedUser);
 
-  // (Optional) ยิง API เช็คอีกทีเพื่อความชัวร์
   try {
     const response = await axios.get('/api/user');
     user.value = response.data;
-    // อัปเดตข้อมูลล่าสุดลง LocalStorage
     localStorage.setItem('user_info', JSON.stringify(response.data));
+
+    // ✅ เริ่มดึงแจ้งเตือนครั้งแรก และตั้งเวลาดึงทุก 1 นาที (Polling)
+    fetchNotifications();
+    pollingInterval = setInterval(fetchNotifications, 60000);
+
   } catch (error) {
-    // ถ้า Token หมดอายุ ให้ดีดออก
-    if (error.response && error.response.status === 401) {
-       handleLogout(false); // false = ไม่ต้องถามยืนยัน
-    }
+    if (error.response && error.response.status === 401) handleLogout(false);
   }
+});
+
+onUnmounted(() => {
+    if (pollingInterval) clearInterval(pollingInterval);
 });
 
 const handleLogout = async (confirmLogout = true) => {
   if (confirmLogout && !confirm('ต้องการออกจากระบบใช่หรือไม่?')) return;
-
-  try {
-    // 1. แจ้ง Server ให้ลบ Token
-    await axios.post('/api/logout');
-  } catch (error) {
-    console.error('Logout error:', error);
-  } finally {
-    // 2. ล้างข้อมูลในเครื่องให้เกลี้ยง
+  try { await axios.post('/api/logout'); } catch (error) {}
+  finally {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user_info');
-
-    // 3. ลบ Header ที่ค้างอยู่ใน Axios
     delete axios.defaults.headers.common['Authorization'];
-
-    // 4. ดีดไปหน้า Login
     router.push('/login');
   }
 };
 </script>
+
+<style scoped>
+.animate-fade-in-up { animation: fadeInUp 0.2s ease-out; }
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+</style>

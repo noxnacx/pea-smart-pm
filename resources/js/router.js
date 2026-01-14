@@ -10,6 +10,7 @@ import ProgramsIndex from './Pages/ProgramsIndex.vue';
 import UsersIndex from './Pages/UsersIndex.vue';
 import ProgramDetail from './Pages/ProgramDetail.vue';
 import MyProjects from './Pages/MyProjects.vue';
+import MyTasks from './Pages/MyTasks.vue'
 
 const routes = [
     {
@@ -66,6 +67,12 @@ const routes = [
         path: '/calendar',
         name: 'calendar',
         component: Calendar,
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/my-tasks',
+        name: 'my-tasks',
+        component: MyTasks,
         meta: { requiresAuth: true }
     },
 ];
