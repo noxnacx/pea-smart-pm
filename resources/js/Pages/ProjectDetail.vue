@@ -140,16 +140,20 @@ const handleSearchUsers = async () => {
 
 const handleAddMember = async (user) => {
     try {
+        // ✅ แก้ไข: เพิ่ม role: 'member' เข้าไปใน payload
         await axios.post(`/api/projects/${project.value.id}/members`, {
-            user_id: user.id
+            user_id: user.id,
+            role: 'member' // กำหนด role เริ่มต้นเป็น member
         });
+
         // รีโหลดข้อมูลโปรเจกต์ใหม่เพื่ออัปเดตรายชื่อ
         await fetchProjectDetail();
         // ลบออกจากผลการค้นหา
         userSearchResults.value = userSearchResults.value.filter(u => u.id !== user.id);
         alert(`เพิ่ม ${user.name} เข้าทีมเรียบร้อย`);
     } catch (e) {
-        alert('เพิ่มสมาชิกไม่สำเร็จ');
+        console.error(e);
+        alert('เพิ่มสมาชิกไม่สำเร็จ: ' + (e.response?.data?.message || 'โปรดลองอีกครั้ง'));
     }
 };
 

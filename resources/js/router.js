@@ -4,13 +4,12 @@ import ProjectDetail from './Pages/ProjectDetail.vue';
 import ProjectsIndex from './Pages/ProjectsIndex.vue';
 import Login from './Pages/Login.vue';
 import Calendar from './Pages/Calendar.vue';
-
-// *** เพิ่ม 2 บรรทัดนี้ที่หายไป ***
 import ProgramsIndex from './Pages/ProgramsIndex.vue';
 import UsersIndex from './Pages/UsersIndex.vue';
 import ProgramDetail from './Pages/ProgramDetail.vue';
 import MyProjects from './Pages/MyProjects.vue';
 import MyTasks from './Pages/MyTasks.vue'
+import NotificationsIndex from './Pages/NotificationsIndex.vue';
 
 const routes = [
     {
@@ -73,6 +72,11 @@ const routes = [
         path: '/my-tasks',
         name: 'my-tasks',
         component: MyTasks,
+        meta: { requiresAuth: true }
+    },
+    {   path: '/notifications',
+        name: 'notifications',
+        component: NotificationsIndex,
         meta: { requiresAuth: true }
     },
 ];

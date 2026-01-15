@@ -35,4 +35,17 @@ class NotificationController extends Controller
         $request->user()->unreadNotifications->markAsRead();
         return response()->json(['message' => 'All Read']);
     }
+
+    public function destroy(Request $request, $id)
+    {
+        // ค้นหาแจ้งเตือนของ user คนนี้ที่มี id ตรงกัน
+        $notification = $request->user()->notifications()->where('id', $id)->first();
+
+        if ($notification) {
+            $notification->delete();
+            return response()->json(['message' => 'Deleted']);
+        }
+
+        return response()->json(['message' => 'Not found'], 404);
+    }
 }

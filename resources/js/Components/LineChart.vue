@@ -3,7 +3,6 @@ import { computed } from 'vue';
 
 const props = defineProps(['data']);
 
-// แปลงข้อมูลให้เป็น Format ของ ApexCharts
 const series = computed(() => [{
   name: 'แผนงานสะสม (%)',
   data: props.data.map(d => d.planned)
@@ -17,18 +16,19 @@ const chartOptions = computed(() => ({
     type: 'line',
     height: 350,
     fontFamily: 'Sarabun, sans-serif',
-    toolbar: { show: false }
+    toolbar: { show: false },
+    redrawOnParentResize: true // ✅ แก้ปัญหาหด
   },
-  colors: ['#9CA3AF', '#7C3AED'], // สีเทา (แผน), สีม่วง (จริง)
+  colors: ['#9CA3AF', '#7C3AED'],
   stroke: { curve: 'smooth', width: 3 },
   xaxis: {
-    categories: props.data.map(d => d.date), // วันที่แกน X
+    categories: props.data.map(d => d.date),
     type: 'datetime',
     labels: { format: 'dd MMM yy' }
   },
   yaxis: {
     min: 0,
-    max: 100,
+    max: 100, // ✅ ล็อกสเกล 0-100 เสมอ
     labels: { formatter: (val) => val.toFixed(0) }
   },
   tooltip: { x: { format: 'dd MMM yyyy' } },
@@ -38,5 +38,7 @@ const chartOptions = computed(() => ({
 </script>
 
 <template>
-  <apexchart type="line" height="300" :options="chartOptions" :series="series"></apexchart>
+  <div class="w-full">
+      <apexchart type="line" height="350" width="100%" :options="chartOptions" :series="series"></apexchart>
+  </div>
 </template>
