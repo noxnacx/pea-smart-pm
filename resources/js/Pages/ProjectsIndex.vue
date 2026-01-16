@@ -1,6 +1,7 @@
 <script setup>
 import AppLayout from '../Components/AppLayout.vue';
 import ProjectModal from '../Components/ProjectModal.vue';
+import ProjectHistoryModal from '../Components/ProjectHistoryModal.vue'; // ✅ Import Modal ประวัติ
 import { ref, onMounted, watch, computed } from 'vue';
 import axios from 'axios';
 import { useRouter, useRoute } from 'vue-router';
@@ -14,6 +15,10 @@ const statusFilter = ref('all');
 const showModal = ref(false);
 const projectToEdit = ref(null);
 const userRole = ref('user');
+
+// ✅ เพิ่ม State สำหรับ History Modal
+const showHistoryModal = ref(false);
+const selectedProjectId = ref(null);
 
 // ✅ เช็คสิทธิ์: เฉพาะ Admin และ PGM (Program Manager) เท่านั้นที่มีสิทธิ์จัดการในหน้านี้
 const canManage = computed(() => ['admin', 'program_manager'].includes(userRole.value));
@@ -52,6 +57,14 @@ const changePage = (page) => {
 const goToDetail = (id) => router.push(`/project/${id}`);
 const openCreateModal = () => { projectToEdit.value = null; showModal.value = true; };
 const openEditModal = (project, event) => { event.stopPropagation(); projectToEdit.value = project; showModal.value = true; };
+
+// ✅ ฟังก์ชันเปิดหน้าประวัติ
+const openHistory = (id, event) => {
+    event.stopPropagation();
+    selectedProjectId.value = id;
+    showHistoryModal.value = true;
+};
+
 const handleDelete = async (id, event) => {
   event.stopPropagation();
   if (!confirm('ยืนยันที่จะลบโครงการนี้?')) return;
@@ -122,7 +135,7 @@ onMounted(() => {
                 <th class="px-6 py-4">ชื่อโครงการ</th>
                 <th class="px-6 py-4 text-center">สถานะ</th>
                 <th class="px-6 py-4 text-right">งบประมาณ</th>
-                <th v-if="canManage" class="px-6 py-4 text-right">จัดการ</th>
+                <th class="px-6 py-4 text-right">จัดการ</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -138,10 +151,19 @@ onMounted(() => {
                     </span>
                 </td>
                 <td class="px-6 py-4 text-right text-gray-700 font-mono">{{ formatCurrency(project.contract_amount) }}</td>
-                <td v-if="canManage" class="px-6 py-4 text-right">
+                <td class="px-6 py-4 text-right">
                     <div class="flex items-center justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
-                    <button @click="(e) => openEditModal(project, e)" class="p-1.5 text-yellow-600 hover:bg-yellow-100 rounded" title="แก้ไข"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg></button>
-                    <button @click="(e) => handleDelete(project.id, e)" class="p-1.5 text-red-600 hover:bg-red-100 rounded" title="ลบ"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg></button>
+
+                        <button @click="(e) => openHistory(project.id, e)" class="p-1.5 text-blue-500 hover:bg-blue-100 rounded" title="ดูประวัติการแก้ไข">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </button>
+
+                        <template v-if="canManage">
+                            <button @click="(e) => openEditModal(project, e)" class="p-1.5 text-yellow-600 hover:bg-yellow-100 rounded" title="แก้ไข"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg></button>
+                            <button @click="(e) => handleDelete(project.id, e)" class="p-1.5 text-red-600 hover:bg-red-100 rounded" title="ลบ"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg></button>
+                        </template>
                     </div>
                 </td>
                 </tr>
@@ -163,6 +185,13 @@ onMounted(() => {
       </div>
 
       <ProjectModal :isOpen="showModal" :project="projectToEdit" @close="showModal = false" @saved="handleSave" />
+
+      <ProjectHistoryModal
+        :show="showHistoryModal"
+        :projectId="selectedProjectId"
+        @close="showHistoryModal = false"
+      />
+
     </div>
   </AppLayout>
 </template>

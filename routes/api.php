@@ -15,6 +15,8 @@ use App\Http\Controllers\Api\ProgramController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\AuditLogController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -97,5 +99,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
     Route::delete('/notifications/{id}', [NotificationController::class, 'destroy']);
 
+    Route::get('/audit-logs', [AuditLogController::class, 'index']); // admin ดูรวม
+    Route::get('/projects/{id}/logs', [AuditLogController::class, 'projectLogs']); // ดูเจาะจง project
 
 });

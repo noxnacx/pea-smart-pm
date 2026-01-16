@@ -5,13 +5,17 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Carbon\Carbon;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class Project extends Model
 {
     use HasFactory;
+    use LogsActivity;
+
     protected $guarded = [];
 
-    // แปลงวันที่ให้เป็น Carbon Object อัตโนมัติ (เพื่อให้จัดการวันที่ง่าย)
+    // แปลงวันที่ให้เป็น Carbon Object อัตโนมัติ
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
@@ -21,7 +25,6 @@ class Project extends Model
 
     /**
      * ระบบคำนวณความเสี่ยงอัตโนมัติ (Risk Analysis)
-     * คำนวณจาก Gap ระหว่าง "เปอร์เซ็นต์เวลาที่ผ่านไป" เทียบกับ "ความคืบหน้าจริง"
      */
     public function getRiskAnalysisAttribute()
     {
@@ -40,19 +43,16 @@ class Project extends Model
             ];
         }
 
-        // 2. คำนวณแผนงานที่ควรจะได้ (Expected Progress) ตามระยะเวลา
+        // 2. คำนวณแผนงานที่ควรจะได้ (Expected Progress)
         $totalDuration = $start->diffInDays($end);
         $elapsed = $start->diffInDays($now);
 
-        // แผนงานที่ควรได้ ณ วันนี้ (%) ไม่เกิน 100
         $expectedProgress = $totalDuration > 0 ? min(100, round(($elapsed / $totalDuration) * 100, 2)) : 0;
         $actualProgress = $this->progress_actual ?? 0;
 
-        // ส่วนต่าง (Gap) ระหว่างแผนกับผล
         $gap = round($expectedProgress - $actualProgress, 2);
 
         // 3. ประเมินระดับความเสี่ยง
-        // ความเสี่ยงสูง: ล่าช้ากว่าแผนเกิน 20% หรือ เลยกำหนดส่งแต่ยังไม่เสร็จ
         if ($gap > 20 || ($now->gt($end) && $actualProgress < 100)) {
             return [
                 'level' => 'high',
@@ -61,9 +61,7 @@ class Project extends Model
                 'gap' => $gap,
                 'color' => 'red'
             ];
-        }
-        // ความเสี่ยงปานกลาง: ล่าช้ากว่าแผนเกิน 10%
-        elseif ($gap > 10) {
+        } elseif ($gap > 10) {
             return [
                 'level' => 'medium',
                 'label' => 'เสี่ยง (เริ่มล่าช้า)',
@@ -73,7 +71,6 @@ class Project extends Model
             ];
         }
 
-        // สถานะปกติ
         return [
             'level' => 'low',
             'label' => 'ปกติ',
@@ -83,37 +80,31 @@ class Project extends Model
         ];
     }
 
-    // อยู่ใต้แผนงานไหน
     public function program()
     {
         return $this->belongsTo(Program::class);
     }
 
-    // ใครเป็น PM
     public function manager()
     {
         return $this->belongsTo(User::class, 'manager_id');
     }
 
-    // มี Task อะไรบ้าง
     public function tasks()
     {
         return $this->hasMany(Task::class);
     }
 
-    // มีหมวดงบประมาณอะไรบ้าง
     public function budgetItems()
     {
         return $this->hasMany(BudgetItem::class);
     }
 
-    // มีความเสี่ยงอะไรบ้าง
     public function risks()
     {
         return $this->hasMany(Risk::class);
     }
 
-    // ประวัติกราฟ S-Curve
     public function progressHistory()
     {
         return $this->hasMany(ProjectProgressHistory::class);
@@ -129,17 +120,25 @@ class Project extends Model
         return $this->morphMany(Attachment::class, 'attachable');
     }
 
-    // *** เพิ่มฟังก์ชันนี้เพื่อแก้ Error 500 และให้ระบบจัดการทีมทำงานได้ ***
     public function members()
     {
-        // เชื่อม Many-to-Many กับ User โดยใช้ตารางกลาง 'project_user'
         return $this->belongsToMany(User::class, 'project_user')
-            ->withPivot('role') // ดึงข้อมูล role ในตารางกลางมาด้วย
-            ->withTimestamps(); // ดึง created_at, updated_at มาด้วย
+            ->withPivot('role')
+            ->withTimestamps();
     }
 
     public function comments()
     {
         return $this->morphMany(Comment::class, 'commentable')->orderBy('created_at', 'desc');
+    }
+
+    // Config สำหรับ Activity Log
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logAll()
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->setDescriptionForEvent(fn(string $eventName) => "โครงการนี้ถูก {$eventName}");
     }
 }

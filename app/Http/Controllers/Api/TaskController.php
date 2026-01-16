@@ -118,7 +118,6 @@ class TaskController extends Controller
     }
 
     // 4. ดึง Log
-    // 4. ดึง Log และ ไฟล์แนบ (แก้ไขแล้ว)
     public function getLogs($id)
     {
         // ดึง Task พร้อมกับ Logs (และคนบันทึก) และ Attachments

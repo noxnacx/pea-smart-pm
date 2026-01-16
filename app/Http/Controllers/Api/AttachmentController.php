@@ -37,6 +37,23 @@ class AttachmentController extends Controller
                 'user_id' => $request->user()->id, // เก็บ ID ผู้ที่ทำการอัปโหลด
             ]);
 
+            // ✅ บันทึก Audit Log เชื่อมโยงไปยัง Parent Model (Project/Task)
+            // เพื่อให้ประวัติไปขึ้นที่หน้าโครงการ
+            $parentClass = $request->attachable_type;
+
+            // ตรวจสอบว่า Class นี้มีอยู่จริงไหม
+            if (class_exists($parentClass)) {
+                $parent = $parentClass::find($request->attachable_id);
+
+                if ($parent) {
+                    activity()
+                        ->performedOn($parent) // ให้ Log นี้ไปแปะอยู่ที่ Project/Task นั้นๆ
+                        ->causedBy($request->user())
+                        ->withProperties(['file_name' => $file->getClientOriginalName()])
+                        ->log("แนบไฟล์เอกสาร: {$file->getClientOriginalName()}");
+                }
+            }
+
             return response()->json([
                 'message' => 'อัปโหลดไฟล์สำเร็จ',
                 'attachment' => $attachment,
@@ -58,6 +75,17 @@ class AttachmentController extends Controller
         if (Storage::disk('public')->exists($attachment->file_path)) {
             Storage::disk('public')->delete($attachment->file_path);
         }
+
+        // (Optional) อาจจะเพิ่ม Log ตอนลบไฟล์ด้วยก็ได้ ถ้าต้องการ
+        /*
+        $parent = $attachment->attachable;
+        if ($parent) {
+             activity()
+                ->performedOn($parent)
+                ->causedBy(request()->user())
+                ->log("ลบไฟล์เอกสาร: {$attachment->file_name}");
+        }
+        */
 
         // ลบข้อมูลในฐานข้อมูล
         $attachment->delete();

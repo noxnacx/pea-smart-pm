@@ -10,7 +10,7 @@ import ProgramDetail from './Pages/ProgramDetail.vue';
 import MyProjects from './Pages/MyProjects.vue';
 import MyTasks from './Pages/MyTasks.vue'
 import NotificationsIndex from './Pages/NotificationsIndex.vue';
-import FinanceIndex from './Pages/FinanceIndex.vue';
+import AuditLogs from './Pages/AuditLogs.vue';
 
 const routes = [
     {
@@ -43,13 +43,13 @@ const routes = [
     },
     {
         path: '/programs',
-        name: 'programs.index', // ตั้งชื่อ route ไว้หน่อยก็ดีครับ
+        name: 'programs.index',
         component: ProgramsIndex,
         meta: { requiresAuth: true }
     },
     {
         path: '/users',
-        name: 'users.index', // ตั้งชื่อ route ไว้หน่อยก็ดีครับ
+        name: 'users.index',
         component: UsersIndex,
         meta: { requiresAuth: true }
     },
@@ -80,6 +80,13 @@ const routes = [
         component: NotificationsIndex,
         meta: { requiresAuth: true }
     },
+    // ✅ Route สำหรับ Audit Logs (Admin Only)
+    {
+        path: '/admin/audit-logs',
+        name: 'audit-logs',
+        component: AuditLogs,
+        meta: { requiresAuth: true }
+    }
 ];
 
 const router = createRouter({
