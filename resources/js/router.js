@@ -10,6 +10,7 @@ import ProgramDetail from './Pages/ProgramDetail.vue';
 import MyProjects from './Pages/MyProjects.vue';
 import MyTasks from './Pages/MyTasks.vue'
 import NotificationsIndex from './Pages/NotificationsIndex.vue';
+import FinanceIndex from './Pages/FinanceIndex.vue';
 
 const routes = [
     {

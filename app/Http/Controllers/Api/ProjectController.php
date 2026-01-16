@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 
 class ProjectController extends Controller
 {
-    // แสดงรายการโครงการ (พร้อมระบบกรองสิทธิ์)
+    // แสดงรายการโครงการ
     public function index(Request $request)
     {
         $user = $request->user();
@@ -23,10 +23,9 @@ class ProjectController extends Controller
         }
 
         // 2. กรอง "โครงการของฉัน" (My Projects)
-        // ถ้าส่ง parameter ?scope=my_projects มา หรือ ถ้าไม่ใช่ Admin/Manager (ระบบบังคับดูได้แค่ของตัวเอง)
-        $forceMyProjects = $request->get('scope') === 'my_projects';
-
-        if ($forceMyProjects || ($user->role !== 'admin' && $user->role !== 'program_manager')) {
+        // ✅ แก้ไข: กรองเฉพาะเมื่อส่ง parameter ?scope=my_projects มาเท่านั้น
+        // เพื่อให้หน้า "ทะเบียนโครงการ" (Registry) แสดงโครงการทั้งหมดให้ User เห็นได้ด้วย
+        if ($request->get('scope') === 'my_projects') {
             $query->where(function($q) use ($user) {
                 $q->where('manager_id', $user->id)
                   ->orWhereHas('members', function($m) use ($user) {
@@ -60,8 +59,8 @@ class ProjectController extends Controller
         $user = auth()->user();
         $project = \App\Models\Project::with(['manager', 'tasks.user', 'members','tasks.users','tasks.progressLogs.user','tasks.attachments'])->findOrFail($id);
 
-        // เช็คสิทธิ์การแก้ไข (เผื่อเอาไปใช้ซ่อนปุ่มใน Frontend)
-        $canEdit = $user->role === 'admin' || $project->manager_id === $user->id;
+        // เช็คสิทธิ์การแก้ไข (Admin, PGM, หรือ PJM ที่ดูแลโปรเจคนี้)
+        $canEdit = $user->role === 'admin' || $user->role === 'program_manager' || $project->manager_id === $user->id;
 
         $risk = $project->risk_analysis;
         $paidAmount = $project->payments()->sum('amount');
@@ -77,12 +76,13 @@ class ProjectController extends Controller
             'budget_summary' => $budgetSummary,
             'risk_analysis' => $risk,
             'last_update' => $project->progressHistory()->with('user')->latest('date_logged')->first(),
-            'can_edit' => $canEdit // ส่งกลับไปบอกหน้าบ้าน
+            'can_edit' => $canEdit
         ]);
     }
 
     public function store(Request $request)
     {
+        // ... (ส่วน store เหมือนเดิม)
         $validated = $request->validate([
             'name' => 'required|string',
             'code' => 'required|string|unique:projects,code',
@@ -101,9 +101,10 @@ class ProjectController extends Controller
     public function update(Request $request, $id)
     {
         $project = Project::findOrFail($id);
+        $user = $request->user();
 
-        // ควรเช็คสิทธิ์ก่อนอัปเดตด้วย (Optional but recommended)
-        if ($request->user()->role !== 'admin' && $project->manager_id !== $request->user()->id) {
+        // ✅ ปรับสิทธิ์: Admin, PGM หรือ PJM เท่านั้นที่แก้ได้
+        if ($user->role !== 'admin' && $user->role !== 'program_manager' && $project->manager_id !== $user->id) {
              return response()->json(['message' => 'ไม่มีสิทธิ์แก้ไข'], 403);
         }
 
@@ -121,9 +122,10 @@ class ProjectController extends Controller
     public function destroy($id)
     {
         $project = \App\Models\Project::findOrFail($id);
+        $user = request()->user();
 
-        // เช็คสิทธิ์ (เฉพาะ Admin หรือ Manager)
-        if (request()->user()->role !== 'admin' && $project->manager_id !== request()->user()->id) {
+        // ✅ ปรับสิทธิ์: Admin, PGM หรือ PJM เท่านั้นที่ลบได้
+        if ($user->role !== 'admin' && $user->role !== 'program_manager' && $project->manager_id !== $user->id) {
              return response()->json(['message' => 'ไม่มีสิทธิ์ลบ'], 403);
         }
 
@@ -135,6 +137,7 @@ class ProjectController extends Controller
         return response()->json(['message' => 'ลบโครงการเรียบร้อยแล้ว']);
     }
 
+    // ... (ส่วนอื่นๆ updateProgress, getOptions, searchUsers, addMember, removeMember คงเดิม) ...
     public function updateProgress(Request $request, $id)
     {
         $request->validate([
@@ -166,8 +169,6 @@ class ProjectController extends Controller
             'programs' => \App\Models\Program::all(['id', 'name']),
         ]);
     }
-
-    // --- Team Management ---
 
     public function searchUsers(Request $request)
     {

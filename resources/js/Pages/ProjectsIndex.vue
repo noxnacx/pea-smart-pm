@@ -3,16 +3,20 @@ import AppLayout from '../Components/AppLayout.vue';
 import ProjectModal from '../Components/ProjectModal.vue';
 import { ref, onMounted, watch, computed } from 'vue';
 import axios from 'axios';
-import { useRouter, useRoute } from 'vue-router'; // ✅ เพิ่ม useRoute
+import { useRouter, useRoute } from 'vue-router';
 
 const router = useRouter();
-const route = useRoute(); // ✅ เรียกใช้ useRoute
+const route = useRoute();
 const loading = ref(true);
 const projects = ref({ data: [], current_page: 1, last_page: 1 });
 const search = ref('');
 const statusFilter = ref('all');
 const showModal = ref(false);
 const projectToEdit = ref(null);
+const userRole = ref('user');
+
+// ✅ เช็คสิทธิ์: เฉพาะ Admin และ PGM (Program Manager) เท่านั้นที่มีสิทธิ์จัดการในหน้านี้
+const canManage = computed(() => ['admin', 'program_manager'].includes(userRole.value));
 
 const fetchProjects = async (page = 1) => {
   loading.value = true;
@@ -25,7 +29,6 @@ const fetchProjects = async (page = 1) => {
   loading.value = false;
 };
 
-// --- Pagination Logic ---
 const displayedPages = computed(() => {
   const current = projects.value.current_page;
   const last = projects.value.last_page;
@@ -46,7 +49,6 @@ const changePage = (page) => {
     fetchProjects(page);
 };
 
-// --- Actions ---
 const goToDetail = (id) => router.push(`/project/${id}`);
 const openCreateModal = () => { projectToEdit.value = null; showModal.value = true; };
 const openEditModal = (project, event) => { event.stopPropagation(); projectToEdit.value = project; showModal.value = true; };
@@ -69,9 +71,10 @@ const formatCurrency = (val) => new Intl.NumberFormat('th-TH').format(val || 0);
 let timeout = null;
 watch([search, statusFilter], () => { clearTimeout(timeout); timeout = setTimeout(() => fetchProjects(1), 500); });
 
-// --- onMounted (แก้ไขใหม่) ---
 onMounted(() => {
-    // ✅ เช็คว่ามีค่า ?status=... ส่งมาจาก Dashboard หรือไม่
+    const user = JSON.parse(localStorage.getItem('user_info') || '{}');
+    userRole.value = user.role || 'user';
+
     if (route.query.status) {
         statusFilter.value = route.query.status;
     }
@@ -87,7 +90,7 @@ onMounted(() => {
            <h1 class="text-2xl font-bold text-gray-800 flex items-center gap-2">📂 ทะเบียนโครงการ (All Projects)</h1>
            <p class="text-sm text-gray-500">จัดการข้อมูลโครงการทั้งหมดในระบบ</p>
         </div>
-        <button @click="openCreateModal" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-all active:scale-95">
+        <button v-if="canManage" @click="openCreateModal" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-all active:scale-95">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
           สร้างโครงการใหม่
         </button>
@@ -119,7 +122,7 @@ onMounted(() => {
                 <th class="px-6 py-4">ชื่อโครงการ</th>
                 <th class="px-6 py-4 text-center">สถานะ</th>
                 <th class="px-6 py-4 text-right">งบประมาณ</th>
-                <th class="px-6 py-4 text-right">จัดการ</th>
+                <th v-if="canManage" class="px-6 py-4 text-right">จัดการ</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -135,14 +138,14 @@ onMounted(() => {
                     </span>
                 </td>
                 <td class="px-6 py-4 text-right text-gray-700 font-mono">{{ formatCurrency(project.contract_amount) }}</td>
-                <td class="px-6 py-4 text-right">
+                <td v-if="canManage" class="px-6 py-4 text-right">
                     <div class="flex items-center justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
                     <button @click="(e) => openEditModal(project, e)" class="p-1.5 text-yellow-600 hover:bg-yellow-100 rounded" title="แก้ไข"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg></button>
                     <button @click="(e) => handleDelete(project.id, e)" class="p-1.5 text-red-600 hover:bg-red-100 rounded" title="ลบ"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg></button>
                     </div>
                 </td>
                 </tr>
-                <tr v-if="projects.data.length === 0"><td colspan="5" class="text-center py-10 text-gray-400">ไม่พบข้อมูลโครงการ</td></tr>
+                <tr v-if="projects.data.length === 0"><td :colspan="canManage ? 5 : 4" class="text-center py-10 text-gray-400">ไม่พบข้อมูลโครงการ</td></tr>
             </tbody>
             </table>
 

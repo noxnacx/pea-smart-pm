@@ -10,12 +10,16 @@ const loading = ref(false);
 const showModal = ref(false);
 const search = ref('');
 const yearFilter = ref('');
+const userRole = ref('user');
 
 // Pagination State
 const currentPage = ref(1);
 const itemsPerPage = 10;
 
 const form = ref({ id: null, name: '', fiscal_year: new Date().getFullYear() + 543, total_budget: 0, start_date: '', end_date: '', description: '', status: 'active' });
+
+// ✅ เช็คสิทธิ์: เฉพาะ Admin และ PGM (Program Manager) เท่านั้นที่มีสิทธิ์จัดการ
+const canManage = computed(() => ['admin', 'program_manager'].includes(userRole.value));
 
 const fetchPrograms = async () => {
   loading.value = true;
@@ -45,7 +49,7 @@ const paginatedPrograms = computed(() => {
 const totalPages = computed(() => Math.ceil(filteredPrograms.value.length / itemsPerPage));
 
 const changePage = (page) => { if (page >= 1 && page <= totalPages.value) currentPage.value = page; };
-watch([search, yearFilter], () => { currentPage.value = 1; }); // Reset หน้าเมื่อกรอง
+watch([search, yearFilter], () => { currentPage.value = 1; });
 
 // --- Actions ---
 const openModal = (program = null) => {
@@ -65,7 +69,11 @@ const goToDetail = (id) => router.push(`/programs/${id}`);
 const formatCurrency = (val) => new Intl.NumberFormat('th-TH').format(val || 0);
 const formatDate = (date) => date ? new Date(date).toLocaleDateString('th-TH') : '-';
 
-onMounted(fetchPrograms);
+onMounted(() => {
+    const user = JSON.parse(localStorage.getItem('user_info') || '{}');
+    userRole.value = user.role || 'user';
+    fetchPrograms();
+});
 </script>
 
 <template>
@@ -76,7 +84,7 @@ onMounted(fetchPrograms);
            <h1 class="text-2xl font-bold text-gray-800 flex items-center gap-2">📂 จัดการแผนงาน (Programs)</h1>
            <p class="text-sm text-gray-500">บริหารจัดการแผนงานหลักและงบประมาณภาพรวม</p>
         </div>
-        <button @click="openModal()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-transform active:scale-95">
+        <button v-if="canManage" @click="openModal()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-transform active:scale-95">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
           เพิ่มแผนงานใหม่
         </button>
@@ -106,7 +114,7 @@ onMounted(fetchPrograms);
                 <th class="px-6 py-4 text-center">ระยะเวลา</th>
                 <th class="px-6 py-4 text-center">สถานะ</th>
                 <th class="px-6 py-4 text-right">งบประมาณรวม</th>
-                <th class="px-6 py-4 text-center">จัดการ</th>
+                <th v-if="canManage" class="px-6 py-4 text-center">จัดการ</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -123,14 +131,14 @@ onMounted(fetchPrograms);
                     </span>
                 </td>
                 <td class="px-6 py-4 text-right font-medium font-mono">{{ formatCurrency(pg.total_budget) }}</td>
-                <td class="px-6 py-4 text-center">
+                <td v-if="canManage" class="px-6 py-4 text-center">
                     <div class="flex items-center justify-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
                     <button @click="openModal(pg)" class="p-1.5 text-yellow-600 hover:bg-yellow-100 rounded" title="แก้ไข"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg></button>
                     <button @click="remove(pg.id)" class="p-1.5 text-red-600 hover:bg-red-100 rounded" title="ลบ"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg></button>
                     </div>
                 </td>
                 </tr>
-                <tr v-if="paginatedPrograms.length === 0"><td colspan="6" class="text-center py-10 text-gray-400">ไม่พบข้อมูลแผนงาน</td></tr>
+                <tr v-if="paginatedPrograms.length === 0"><td :colspan="canManage ? 6 : 5" class="text-center py-10 text-gray-400">ไม่พบข้อมูลแผนงาน</td></tr>
             </tbody>
             </table>
 
@@ -146,20 +154,8 @@ onMounted(fetchPrograms);
             </div>
         </div>
       </div>
-    </div>
 
-    <div v-if="showModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
-        <div class="p-5 border-b bg-gray-50 flex justify-between items-center"><h3 class="font-bold text-gray-800">{{ form.id ? '✏️ แก้ไขแผนงาน' : '➕ เพิ่มแผนงานใหม่' }}</h3><button @click="showModal=false" class="text-gray-400 hover:text-gray-600">✕</button></div>
-        <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-          <div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-bold text-gray-700 mb-1">ปีงบฯ</label><input v-model="form.fiscal_year" class="w-full border rounded-lg px-3 py-2"></div><div><label class="block text-sm font-bold text-gray-700 mb-1">สถานะ</label><select v-model="form.status" class="w-full border rounded-lg px-3 py-2"><option value="active">🟢 ใช้งาน</option><option value="closed">🔴 ปิด</option></select></div></div>
-          <div><label class="block text-sm font-bold text-gray-700 mb-1">ชื่อแผนงาน</label><input v-model="form.name" class="w-full border rounded-lg px-3 py-2"></div>
-          <div><label class="block text-sm font-bold text-gray-700 mb-1">งบประมาณ</label><input v-model="form.total_budget" type="number" class="w-full border rounded-lg px-3 py-2"></div>
-          <div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-bold text-gray-700 mb-1">เริ่ม</label><input v-model="form.start_date" type="date" class="w-full border rounded-lg px-3 py-2"></div><div><label class="block text-sm font-bold text-gray-700 mb-1">สิ้นสุด</label><input v-model="form.end_date" type="date" class="w-full border rounded-lg px-3 py-2"></div></div>
-          <div><label class="block text-sm font-bold text-gray-700 mb-1">รายละเอียด</label><textarea v-model="form.description" class="w-full border rounded-lg px-3 py-2"></textarea></div>
-        </div>
-        <div class="p-5 border-t bg-gray-50 flex justify-end gap-2"><button @click="showModal=false" class="px-4 py-2 text-gray-600">ยกเลิก</button><button @click="save" class="bg-purple-600 text-white px-6 py-2 rounded-lg font-bold">บันทึก</button></div>
-      </div>
+      <ProjectModal :isOpen="showModal" :project="null" @close="showModal = false" @saved="save" />
     </div>
   </AppLayout>
 </template>

@@ -1,5 +1,6 @@
 <script setup>
 import AppLayout from '../Components/AppLayout.vue';
+import ProjectModal from '../Components/ProjectModal.vue'; // ✅ 1. Import Modal
 import { ref, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
@@ -11,7 +12,10 @@ const program = ref({});
 const projects = ref([]);
 const currentUser = ref(null);
 
-// Status Badge Labels
+// ตัวแปรสำหรับ Modal
+const showModal = ref(false);
+const projectToEdit = ref(null);
+
 const statusLabels = {
   'ongoing': 'กำลังดำเนินการ',
   'late': 'ล่าช้า',
@@ -19,29 +23,25 @@ const statusLabels = {
   'draft': 'ร่าง (Draft)'
 };
 
-// Check Permissions
-const canManageProgram = computed(() => {
-    return currentUser.value && currentUser.value.role === 'admin';
+// ✅ เช็คสิทธิ์ตามเงื่อนไข (Admin หรือ PM)
+const canManage = computed(() => {
+    return currentUser.value && ['admin', 'program_manager'].includes(currentUser.value.role);
 });
 
 const fetchData = async () => {
     loading.value = true;
     try {
-        // 1. ดึง User ปัจจุบัน
         const userRes = await axios.get('/api/user');
         currentUser.value = userRes.data;
 
-        // 2. ดึงข้อมูลแผนงาน
         const pId = route.params.id;
         const progRes = await axios.get(`/api/programs/${pId}`);
         program.value = progRes.data;
 
-        // 3. ดึงโครงการในแผนงานนี้
         const projRes = await axios.get(`/api/projects?program_id=${pId}`);
-        projects.value = projRes.data.data; // .data เพราะ Laravel paginate ส่งมา
+        projects.value = projRes.data.data;
     } catch (e) {
         console.error(e);
-        // ถ้าหาไม่เจอให้เด้งกลับ
         if(e.response && e.response.status === 404) router.push('/programs');
     }
     loading.value = false;
@@ -51,8 +51,6 @@ const fetchData = async () => {
 const goToProject = (id) => router.push(`/project/${id}`);
 
 const editProgram = () => {
-    // ในที่นี้อาจจะ Reuse Modal จากหน้า Index หรือ Redirect ไปหน้า Edit
-    // เพื่อความง่ายในบริบทนี้ ผมจะ Alert ไว้ก่อน หรือคุณสามารถ import Modal มาใช้ได้
     alert('คุณสามารถแก้ไขแผนงานได้ที่หน้า "จัดการแผนงาน (Programs)"');
     router.push('/programs');
 };
@@ -66,6 +64,39 @@ const deleteProgram = async () => {
     } catch (e) {
         alert(e.response?.data?.message || 'ลบไม่สำเร็จ');
     }
+};
+
+// ✅ ฟังก์ชันเปิด Modal สร้างโครงการ (พร้อมเลือกแผนงานนี้ให้อัตโนมัติ)
+const openCreateModal = () => {
+    projectToEdit.value = {
+        id: null,
+        name: '',
+        code: '',
+        contract_amount: 0,
+        start_date: '',
+        end_date: '',
+        manager_id: '',
+        program_id: program.value.id, // Auto-select current program
+        status: 'draft',
+        progress_actual: 0
+    };
+    showModal.value = true;
+};
+
+// ✅ ฟังก์ชันบันทึกโครงการ
+const handleSaveProject = async (formData) => {
+  try {
+    if (formData.id) {
+        await axios.put(`/api/projects/${formData.id}`, formData);
+    } else {
+        await axios.post('/api/projects', formData);
+    }
+    showModal.value = false;
+    fetchData(); // รีโหลดข้อมูลใหม่
+    alert('บันทึกโครงการสำเร็จ');
+  } catch (error) {
+    alert('บันทึกไม่สำเร็จ');
+  }
 };
 
 const formatCurrency = (val) => new Intl.NumberFormat('th-TH').format(val || 0);
@@ -98,7 +129,7 @@ onMounted(fetchData);
                     </div>
                 </div>
 
-                <div v-if="canManageProgram" class="flex gap-2">
+                <div v-if="canManage" class="flex gap-2">
                     <button @click="editProgram" class="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-4 py-2 rounded-lg shadow-sm flex items-center gap-2 text-sm font-medium transition-all">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-yellow-500" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" /></svg>
                         แก้ไข
@@ -117,6 +148,11 @@ onMounted(fetchData);
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                 <div class="px-6 py-4 border-b bg-gray-50 flex justify-between items-center">
                     <h3 class="font-bold text-gray-700">โครงการภายใต้แผนงานนี้ ({{ projects.length }})</h3>
+
+                    <button v-if="canManage" @click="openCreateModal" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 transition-all active:scale-95 text-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                        สร้างโครงการใหม่
+                    </button>
                 </div>
 
                 <table class="w-full text-left">
@@ -163,5 +199,7 @@ onMounted(fetchData);
                 </table>
             </div>
         </div>
+
+        <ProjectModal :isOpen="showModal" :project="projectToEdit" @close="showModal = false" @saved="handleSaveProject" />
     </AppLayout>
 </template>

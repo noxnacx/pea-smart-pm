@@ -4,7 +4,7 @@ import LineChart from '../Components/LineChart.vue';
 import DonutChart from '../Components/DonutChart.vue';
 import BarChart from '../Components/BarChart.vue';
 import ProjectModal from '../Components/ProjectModal.vue';
-import { ref, onMounted, nextTick, watch } from 'vue'; // ✅ เพิ่ม watch
+import { ref, onMounted, nextTick, watch } from 'vue';
 import axios from 'axios';
 import { useRouter } from 'vue-router';
 
@@ -52,12 +52,9 @@ const fetchDashboardData = async () => {
   }
 };
 
-// ✅ ใช้ Watcher ดักจับเมื่อ loading เปลี่ยนเป็น false (โหลดเสร็จ)
-// ไม่ว่าจะใช้เวลา 1 วิ หรือ 10 วิ คำสั่งนี้จะทำงานเมื่อข้อมูลพร้อมเสมอ
 watch(loading, (isLoading) => {
     if (!isLoading) {
         nextTick(() => {
-            // สั่ง trigger resize event เพื่อให้กราฟคำนวณความกว้างใหม่ให้พอดีกับกรอบ
             setTimeout(() => {
                 window.dispatchEvent(new Event('resize'));
             }, 300);
@@ -103,6 +100,7 @@ onMounted(() => fetchDashboardData());
     <div v-else class="space-y-6">
 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+
         <div @click="router.push('/projects')" class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between group hover:border-purple-200 transition-all cursor-pointer hover:shadow-md">
            <div>
               <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">โครงการทั้งหมด</p>
@@ -113,6 +111,7 @@ onMounted(() => fetchDashboardData());
               <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
            </div>
         </div>
+
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between hover:border-blue-200 transition-all">
            <div class="flex justify-between items-start">
               <div>
@@ -128,7 +127,19 @@ onMounted(() => fetchDashboardData());
               <div class="bg-blue-500 h-1.5 rounded-full transition-all duration-1000" :style="{ width: (stats?.budget_usage || 0) + '%' }"></div>
            </div>
         </div>
-        <div @click="router.push('/my-tasks')" class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between cursor-pointer hover:shadow-md hover:border-orange-200 transition-all">
+
+        <div v-if="['admin', 'program_manager'].includes(userRole)" @click="router.push({ path: '/projects', query: { status: 'ongoing' } })" class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between cursor-pointer hover:shadow-md hover:border-indigo-200 transition-all">
+           <div>
+              <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">กำลังดำเนินการ (Active)</p>
+              <h3 class="text-3xl font-extrabold text-gray-800 mt-1">{{ stats?.ongoing ?? 0 }}</h3>
+              <p class="text-xs text-indigo-500 mt-1 font-medium">On Schedule</p>
+           </div>
+           <div class="p-3 bg-indigo-50 rounded-xl text-indigo-500">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+           </div>
+        </div>
+
+        <div v-else @click="router.push('/my-tasks')" class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between cursor-pointer hover:shadow-md hover:border-orange-200 transition-all">
            <div>
               <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">งานค้างของคุณ</p>
               <h3 class="text-3xl font-extrabold text-gray-800 mt-1">{{ stats?.my_pending_tasks ?? 0 }}</h3>
@@ -138,6 +149,7 @@ onMounted(() => fetchDashboardData());
               <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
            </div>
         </div>
+
         <div @click="router.push({ path: '/projects', query: { status: 'late' } })" class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between hover:border-red-200 transition-all cursor-pointer hover:shadow-md">
            <div>
               <p class="text-gray-500 text-xs font-bold uppercase tracking-wider">โครงการล่าช้า</p>
