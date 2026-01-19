@@ -17,12 +17,12 @@ class ProjectController extends Controller
         $user = $request->user();
         $query = Project::with('manager');
 
-        // 1. กรองตามแผนงาน (ถ้ามีการส่ง program_id มา)
+        // 1. กรองตามแผนงาน
         if ($request->has('program_id')) {
             $query->where('program_id', $request->program_id);
         }
 
-        // 2. กรอง "โครงการของฉัน" (My Projects)
+        // 2. กรอง "โครงการของฉัน"
         if ($request->get('scope') === 'my_projects') {
             $query->where(function($q) use ($user) {
                 $q->where('manager_id', $user->id)
@@ -32,7 +32,13 @@ class ProjectController extends Controller
             });
         }
 
-        // 3. ระบบค้นหา (Search)
+        // 3. ✅ กรองเฉพาะโครงการหลัก (Main Projects) ไม่เอา Sub-projects (ถ้าไม่ได้ระบุ)
+        // หรือถ้าอยากเห็นทั้งหมดก็เอาบรรทัดนี้ออกได้ครับ
+        // if (!$request->has('show_all')) {
+        //    $query->whereNull('parent_id');
+        // }
+
+        // 4. ระบบค้นหา
         if ($request->has('search') && $request->search != '') {
             $search = $request->search;
             $query->where(function($q) use ($search) {
@@ -41,12 +47,11 @@ class ProjectController extends Controller
             });
         }
 
-        // 4. กรองสถานะ
+        // 5. กรองสถานะ
         if ($request->has('status') && $request->status != 'all') {
             $query->where('status', $request->status);
         }
 
-        // เรียงลำดับและแบ่งหน้า
         $projects = $query->orderBy('updated_at', 'desc')->paginate(10);
 
         return response()->json($projects);
@@ -55,23 +60,28 @@ class ProjectController extends Controller
     public function show($id)
     {
         $user = auth()->user();
-        $project = \App\Models\Project::with(['manager', 'tasks.user', 'members','tasks.users','tasks.progressLogs.user','tasks.attachments'])->findOrFail($id);
+        // ✅ เพิ่ม children (โครงการย่อย) และ parent (โครงการแม่)
+        $project = Project::with([
+            'manager',
+            'tasks.user',
+            'members',
+            'tasks.users',
+            'tasks.progressLogs.user',
+            'tasks.attachments',
+            'children.manager', // โหลดโครงการลูก
+            'parent'            // โหลดโครงการแม่
+        ])->findOrFail($id);
 
-        // เช็คสิทธิ์การแก้ไข (Admin, PGM, หรือ PJM ที่ดูแลโปรเจคนี้)
         $canEdit = $user->role === 'admin' || $user->role === 'program_manager' || $project->manager_id === $user->id;
 
+        // คำนวณ Risk (เหมือนเดิม)
         $risk = $project->risk_analysis;
-        $paidAmount = $project->payments()->sum('amount');
-        $budgetSummary = [
-            'contract_amount' => $project->contract_amount,
-            'paid_amount' => $paidAmount,
-            'remaining_amount' => $project->contract_amount - $paidAmount,
-            'paid_percent' => $project->contract_amount > 0 ? ($paidAmount / $project->contract_amount) * 100 : 0,
-        ];
+
+        // Budget (เอาออกตามที่คุณบอก หรือถ้ามี Model อยู่ก็ใส่ไว้ได้)
+        // $paidAmount = ...
 
         return response()->json([
             'project' => $project,
-            'budget_summary' => $budgetSummary,
             'risk_analysis' => $risk,
             'last_update' => $project->progressHistory()->with('user')->latest('date_logged')->first(),
             'can_edit' => $canEdit
@@ -89,9 +99,15 @@ class ProjectController extends Controller
             'manager_id' => 'required|exists:users,id',
             'program_id' => 'required|exists:programs,id',
             'status' => 'required|in:draft,ongoing,late,completed,cancel',
+            // ✅ เพิ่ม 2 field นี้
+            'parent_id' => 'nullable|exists:projects,id',      // สร้างเป็น Sub-project
+            'task_parent_id' => 'nullable|exists:tasks,id',   // สร้างจาก Task
         ]);
 
         $project = Project::create($validated);
+
+        // ถ้าสร้างมาจาก Task อาจจะมีการ Auto Update สถานะ Task แม่ด้วย (Option)
+
         return response()->json(['message' => 'สร้างโครงการสำเร็จ', 'project' => $project], 201);
     }
 
@@ -100,7 +116,6 @@ class ProjectController extends Controller
         $project = Project::findOrFail($id);
         $user = $request->user();
 
-        // เช็คสิทธิ์
         if ($user->role !== 'admin' && $user->role !== 'program_manager' && $project->manager_id !== $user->id) {
              return response()->json(['message' => 'ไม่มีสิทธิ์แก้ไข'], 403);
         }
@@ -110,7 +125,13 @@ class ProjectController extends Controller
             'status' => 'required|in:draft,ongoing,late,completed,cancel',
             'progress_actual' => 'required|numeric|min:0|max:100',
             'contract_amount' => 'required|numeric',
+            'parent_id' => 'nullable|exists:projects,id',
         ]);
+
+        // ป้องกัน Circular
+        if ($request->parent_id == $id) {
+             return response()->json(['message' => 'ไม่สามารถเลือกตัวเองเป็นโครงการแม่ได้'], 422);
+        }
 
         $project->update($validated);
         return response()->json(['message' => 'อัปเดตโครงการสำเร็จ', 'project' => $project]);
@@ -118,10 +139,9 @@ class ProjectController extends Controller
 
     public function destroy($id)
     {
-        $project = \App\Models\Project::findOrFail($id);
+        $project = Project::findOrFail($id);
         $user = request()->user();
 
-        // เช็คสิทธิ์
         if ($user->role !== 'admin' && $user->role !== 'program_manager' && $project->manager_id !== $user->id) {
              return response()->json(['message' => 'ไม่มีสิทธิ์ลบ'], 403);
         }
@@ -134,6 +154,7 @@ class ProjectController extends Controller
         return response()->json(['message' => 'ลบโครงการเรียบร้อยแล้ว']);
     }
 
+    // ... (Functions อื่นๆ: updateProgress, getOptions, searchUsers, addMember, removeMember คงเดิม) ...
     public function updateProgress(Request $request, $id)
     {
         $request->validate([
@@ -141,17 +162,11 @@ class ProjectController extends Controller
             'actual_percent' => 'required|numeric|min:0|max:100',
         ]);
 
-        $project = \App\Models\Project::findOrFail($id);
+        $project = Project::findOrFail($id);
 
         $history = \App\Models\ProjectProgressHistory::updateOrCreate(
-            [
-                'project_id' => $id,
-                'date_logged' => $request->date_logged
-            ],
-            [
-                'actual_percent' => $request->actual_percent,
-                'user_id' => $request->user()->id
-            ]
+            ['project_id' => $id, 'date_logged' => $request->date_logged],
+            ['actual_percent' => $request->actual_percent, 'user_id' => $request->user()->id]
         );
 
         $project->update(['progress_actual' => $request->actual_percent]);
@@ -163,6 +178,7 @@ class ProjectController extends Controller
         return response()->json([
             'managers' => \App\Models\User::all(['id', 'name']),
             'programs' => \App\Models\Program::all(['id', 'name']),
+            'strategies' => \App\Models\Strategy::all(['id', 'name']), // ✅ เพิ่ม Strategies ส่งไปหน้าบ้าน
         ]);
     }
 
@@ -175,8 +191,7 @@ class ProjectController extends Controller
             ->get();
     }
 
-    // --- ส่วนที่เพิ่ม Logic Audit Log ---
-
+    // (ใส่ addMember, removeMember ตัวเดิมที่คุณมี Audit Log ได้เลยครับ)
     public function addMember(Request $request, $id)
     {
         $project = Project::findOrFail($id);
@@ -188,11 +203,10 @@ class ProjectController extends Controller
         if (!$project->members()->where('user_id', $request->user_id)->exists()) {
             $project->members()->attach($request->user_id, ['role' => $request->role]);
 
-            // ✅ บันทึก Log: เพิ่มสมาชิก
             $targetUser = \App\Models\User::find($request->user_id);
             activity()
-                ->performedOn($project) // ระบุว่าเกิดที่ Project นี้
-                ->causedBy($request->user()) // ใครเป็นคนเพิ่ม
+                ->performedOn($project)
+                ->causedBy($request->user())
                 ->withProperties(['target_user' => $targetUser->name, 'role' => $request->role])
                 ->log("เพิ่มสมาชิกทีม: {$targetUser->name} ({$request->role})");
         }
@@ -202,13 +216,10 @@ class ProjectController extends Controller
     public function removeMember($id, $userId)
     {
         $project = Project::findOrFail($id);
-
-        // ✅ ดึงชื่อคนที่จะถูกลบเก็บไว้ก่อน (เพื่อเอาไปใส่ Log)
         $targetUser = \App\Models\User::find($userId);
 
         $project->members()->detach($userId);
 
-        // ✅ บันทึก Log: ลบสมาชิก
         if($targetUser) {
             activity()
                 ->performedOn($project)
@@ -216,7 +227,6 @@ class ProjectController extends Controller
                 ->withProperties(['target_user' => $targetUser->name])
                 ->log("ลบสมาชิกทีม: {$targetUser->name}");
         }
-
         return response()->json(['message' => 'ลบสมาชิกเรียบร้อย']);
     }
 }

@@ -80,6 +80,8 @@ class Project extends Model
         ];
     }
 
+    // --- Relations เดิม ---
+
     public function program()
     {
         return $this->belongsTo(Program::class);
@@ -130,6 +132,26 @@ class Project extends Model
     public function comments()
     {
         return $this->morphMany(Comment::class, 'commentable')->orderBy('created_at', 'desc');
+    }
+
+    // --- Relations ใหม่ (Recursive Hierarchy) ---
+
+    // 1. โครงการแม่ (กรณีเป็น Sub-Project)
+    public function parent()
+    {
+        return $this->belongsTo(Project::class, 'parent_id');
+    }
+
+    // 2. โครงการลูก (Sub-Projects)
+    public function children()
+    {
+        return $this->hasMany(Project::class, 'parent_id');
+    }
+
+    // 3. กรณีโครงการนี้เกิดจาก Task (Task -> Project)
+    public function parentTask()
+    {
+        return $this->belongsTo(Task::class, 'task_parent_id');
     }
 
     // Config สำหรับ Activity Log

@@ -48,6 +48,7 @@
                             <svg v-else-if="item.icon === 'UsersIcon'" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 min-w-[24px]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
                             <svg v-else-if="item.icon === 'CurrencyDollarIcon'" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 min-w-[24px]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             <svg v-else-if="item.icon === 'ClipboardListIcon'" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 min-w-[24px]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                            <svg v-else-if="item.icon === 'GlobeIcon'" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 min-w-[24px]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         </span>
                         <span v-if="!isCollapsed">{{ item.name }}</span>
                     </router-link>
@@ -117,7 +118,6 @@ const filteredMenuGroups = computed(() => {
         },
         {
             title: 'งานของฉัน (My Workspace)',
-            // แสดงเฉพาะ User (Admin และ PM ไม่เห็น)
             items: !isAdminOrPM ? [
                 { name: 'โครงการของฉัน', path: '/my-projects', icon: 'FolderOpenIcon', active: route.path === '/my-projects' },
                 { name: 'งานที่ต้องทำ', path: '/my-tasks', icon: 'ClipboardCheckIcon', active: route.path === '/my-tasks' }
@@ -126,6 +126,13 @@ const filteredMenuGroups = computed(() => {
         {
             title: 'การบริหาร (Management)',
             items: [
+                // ✅ เมนูใหม่: ยุทธศาสตร์องค์กร
+                {
+                    name: 'ยุทธศาสตร์องค์กร',
+                    path: '/strategies',
+                    icon: 'GlobeIcon',
+                    active: route.path.startsWith('/strategies')
+                },
                 {
                     name: isAdminOrPM ? 'จัดการแผนงานหลัก' : 'แผนงานหลัก',
                     path: '/programs',
@@ -138,10 +145,8 @@ const filteredMenuGroups = computed(() => {
         },
         {
             title: 'ตั้งค่าระบบ (System)',
-            // ✅ เฉพาะ Admin เห็นเมนูนี้
             items: isAdminOnly ? [
                 { name: 'จัดการผู้ใช้งาน', path: '/users', icon: 'UsersIcon', active: route.path === '/users' },
-                // ✅ เมนูใหม่ Audit Log
                 { name: 'Audit Logs (บันทึกการใช้งาน)', path: '/admin/audit-logs', icon: 'ClipboardListIcon', active: route.path === '/admin/audit-logs' },
                 { name: 'ตั้งค่าส่วนตัว', path: '/settings', icon: 'CogIcon', isMock: true }
             ] : []
@@ -154,7 +159,6 @@ const filteredMenuGroups = computed(() => {
 .animate-fade-in { animation: fadeIn 0.4s ease-out; }
 @keyframes fadeIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
 
-/* Custom Scrollbar ให้เข้ากับธีมสีม่วง */
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #6d28d9; border-radius: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }

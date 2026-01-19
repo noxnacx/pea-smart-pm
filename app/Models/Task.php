@@ -9,27 +9,25 @@ class Task extends Model
 {
     use HasFactory;
 
-    protected $guarded = []; // ใช้ guarded แทน fillable เพื่อความยืดหยุ่น (หรือใช้ fillable แบบเดิมก็ได้)
+    protected $guarded = [];
 
-    // 1. ความสัมพันธ์กับ Project (✅ ตัวที่ขาดหายไป)
+    // --- Relations เดิม ---
+
     public function project()
     {
         return $this->belongsTo(Project::class);
     }
 
-    // 2. ความสัมพันธ์กับ User (คนสร้าง/เจ้าของงาน)
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    // 3. ความสัมพันธ์กับ Users (ทีมงานที่รับผิดชอบ - Many to Many)
     public function users()
     {
         return $this->belongsToMany(User::class, 'task_user');
     }
 
-    // --- Relations อื่นๆ ---
     public function progressLogs()
     {
         return $this->hasMany(TaskProgressLog::class)->orderBy('created_at', 'desc');
@@ -53,5 +51,13 @@ class Task extends Model
     public function successors()
     {
         return $this->hasMany(Task::class, 'predecessor_id');
+    }
+
+    // --- Relations ใหม่ (Hierarchy) ---
+
+    // Task นี้แตกเป็นโครงการย่อยๆ อะไรบ้าง (Task -> Projects)
+    public function childProjects()
+    {
+        return $this->hasMany(Project::class, 'task_parent_id');
     }
 }

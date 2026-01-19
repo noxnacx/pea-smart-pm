@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\CommentController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\AuditLogController;
+use App\Http\Controllers\Api\StrategyController;
 
 
 /*
@@ -102,4 +103,5 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/audit-logs', [AuditLogController::class, 'index']); // admin ดูรวม
     Route::get('/projects/{id}/logs', [AuditLogController::class, 'projectLogs']); // ดูเจาะจง project
 
+    Route::apiResource('strategies', StrategyController::class);
 });

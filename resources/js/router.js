@@ -11,6 +11,8 @@ import MyProjects from './Pages/MyProjects.vue';
 import MyTasks from './Pages/MyTasks.vue'
 import NotificationsIndex from './Pages/NotificationsIndex.vue';
 import AuditLogs from './Pages/AuditLogs.vue';
+import StrategiesIndex from './Pages/StrategiesIndex.vue';
+import StrategyDetail from './Pages/StrategyDetail.vue';
 
 const routes = [
     {
@@ -86,7 +88,19 @@ const routes = [
         name: 'audit-logs',
         component: AuditLogs,
         meta: { requiresAuth: true }
-    }
+    },
+    {
+        path: '/strategies',
+        name: 'strategies.index',
+        component: StrategiesIndex,
+        meta: { requiresAuth: true }
+    },
+    {
+        path: '/strategies/:id',
+        name: 'strategies.detail',
+        component: StrategyDetail,
+        meta: { requiresAuth: true }
+    },
 ];
 
 const router = createRouter({
