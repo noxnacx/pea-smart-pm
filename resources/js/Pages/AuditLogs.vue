@@ -1,3 +1,45 @@
+<script setup>
+import AppLayout from '@/Components/AppLayout.vue';
+import { ref, onMounted } from 'vue';
+import axios from 'axios';
+import dayjs from 'dayjs';
+import 'dayjs/locale/th';
+import buddhistEra from 'dayjs/plugin/buddhistEra'; // ✅ 1. Import Plugin พ.ศ.
+
+// ✅ 2. เปิดใช้งาน Plugin
+dayjs.extend(buddhistEra);
+
+const logs = ref({});
+
+const fetchLogs = async (url = '/api/audit-logs') => {
+    try {
+        const res = await axios.get(url);
+        logs.value = res.data;
+    } catch (e) {
+        console.error(e);
+    }
+};
+
+const fetchPage = (url) => {
+    if(url) fetchLogs(url);
+};
+
+// ✅ ตอนนี้ BB จะแสดงเป็นปี พ.ศ. แล้วครับ (เช่น 16 ม.ค. 2569 13:23)
+const formatDate = (d) => dayjs(d).locale('th').format('D MMM BB HH:mm');
+
+const getActionBadge = (desc) => {
+    const base = "px-2 inline-flex text-xs leading-5 font-semibold rounded-full ";
+    if(desc.includes('created')) return base + "bg-green-100 text-green-800";
+    if(desc.includes('updated')) return base + "bg-yellow-100 text-yellow-800";
+    if(desc.includes('deleted')) return base + "bg-red-100 text-red-800";
+    return base + "bg-blue-100 text-blue-800";
+};
+
+onMounted(() => {
+    fetchLogs();
+});
+</script>
+
 <template>
   <AppLayout>
     <div class="py-12">
@@ -35,6 +77,9 @@
                     <span v-if="log.subject_type" class="text-xs bg-gray-100 px-2 py-1 rounded">
                         {{ log.subject_type.split('\\').pop() }} #{{ log.subject_id }}
                     </span>
+                    <span v-if="log.properties && Object.keys(log.properties).length > 0" class="text-xs text-gray-400 ml-2">
+                       (มีรายละเอียด)
+                    </span>
                   </td>
                 </tr>
               </tbody>
@@ -60,40 +105,3 @@
     </div>
   </AppLayout>
 </template>
-
-<script setup>
-import AppLayout from '@/Components/AppLayout.vue';
-import { ref, onMounted } from 'vue';
-import axios from 'axios';
-import dayjs from 'dayjs';
-import 'dayjs/locale/th';
-
-const logs = ref({});
-
-const fetchLogs = async (url = '/api/audit-logs') => {
-    try {
-        const res = await axios.get(url);
-        logs.value = res.data;
-    } catch (e) {
-        console.error(e);
-    }
-};
-
-const fetchPage = (url) => {
-    if(url) fetchLogs(url);
-};
-
-const formatDate = (d) => dayjs(d).locale('th').format('D MMM BB HH:mm');
-
-const getActionBadge = (desc) => {
-    const base = "px-2 inline-flex text-xs leading-5 font-semibold rounded-full ";
-    if(desc.includes('created')) return base + "bg-green-100 text-green-800";
-    if(desc.includes('updated')) return base + "bg-yellow-100 text-yellow-800";
-    if(desc.includes('deleted')) return base + "bg-red-100 text-red-800";
-    return base + "bg-blue-100 text-blue-800";
-};
-
-onMounted(() => {
-    fetchLogs();
-});
-</script>
