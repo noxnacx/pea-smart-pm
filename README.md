@@ -35,3 +35,7 @@
 * **Database:** MySQL / PostgreSQL
 
 ---
+
+<img width="1892" height="832" alt="image" src="https://github.com/user-attachments/assets/28b8b0b3-9716-4876-b574-798ffc399ec1" />
+<img width="1643" height="836" alt="image" src="https://github.com/user-attachments/assets/8513eb88-e3cf-4de8-9d2e-24afac9599d3" />
+
